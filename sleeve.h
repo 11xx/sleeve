@@ -340,6 +340,16 @@ static sleeve_colour sleeve__oklch(int32_t lightness, int32_t chroma, int32_t hu
   }
 }
 
+/* a and b mixed, `thousandths` of the way to b, in sRGB. */
+static sleeve_colour sleeve__mix_colour(sleeve_colour a, sleeve_colour b, int32_t thousandths) {
+  sleeve_colour c;
+  c.r = (uint8_t)(a.r + sleeve__div_round((int64_t)(b.r - a.r) * thousandths, 1000));
+  c.g = (uint8_t)(a.g + sleeve__div_round((int64_t)(b.g - a.g) * thousandths, 1000));
+  c.b = (uint8_t)(a.b + sleeve__div_round((int64_t)(b.b - a.b) * thousandths, 1000));
+  c.a = 255;
+  return c;
+}
+
 static sleeve_colour sleeve__alpha(sleeve_colour c, int32_t alpha) {
   c.a = (uint8_t)alpha;
   return c;
@@ -539,28 +549,22 @@ static void sleeve__horizon(sleeve__gen *g) {
   }
 }
 
-/* A smooth wash of two or three colours with a soft glow rising in it. */
+/* A sky wash with a glow rising from the bottom edge, at dusk or at dawn, and sometimes a sun
+   or moon above it. */
 static void sleeve__glow_cover(sleeve__gen *g) {
   sleeve__rng *r = &g->rng;
-  int32_t angle = sleeve__chance(r, 60) ? 180 : sleeve__range(r, 120, 240);
-  sleeve_layer *wash = sleeve__linear(g, angle);
-  int dark = sleeve__chance(r, 50);
-  int32_t gx, gy, gr;
-  sleeve__stop(wash, 0, dark ? g->p[SLEEVE__DEEP] : g->p[SLEEVE__PALE]);
-  if (sleeve__chance(r, 60))
-    sleeve__stop(wash, sleeve__along(wash, sleeve__range(r, 450, 650)), g->p[SLEEVE__MID]);
-  sleeve__stop(wash, sleeve__along(wash, 1000),
-               dark ? g->p[SLEEVE__ACCENT] : g->p[SLEEVE__ACCENT2]);
-  gx = sleeve__range(r, 3000, 7000);
-  gy = sleeve__chance(r, 50) ? SLEEVE_UNIT : sleeve__range(r, 4000, 7000);
-  gr = sleeve__range(r, 3500, 6000);
-  sleeve__glow(g, gx, gy, SLEEVE_UNIT, sleeve__range(r, 6000, 10000), gr, gr / 3,
-               dark ? g->p[SLEEVE__PALE] : g->p[SLEEVE__ACCENT], sleeve__range(r, 150, 210));
-  if (sleeve__chance(r, 45)) {
-    int32_t dr = sleeve__range(r, 900, 1600);
-    sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 2000, 4500), dr,
-                 dark ? g->p[SLEEVE__PALE] : g->p[SLEEVE__DEEP]);
-  }
+  sleeve_layer *wash = sleeve__linear(g, 180);
+  int dusk = sleeve__chance(r, 60);
+  int32_t gx = sleeve__range(r, 3500, 6500), radius = sleeve__range(r, 4500, 6500);
+  sleeve__stop(wash, 0, g->p[dusk ? SLEEVE__DEEP : SLEEVE__MID]);
+  if (dusk) sleeve__stop(wash, sleeve__range(r, 4500, 6500), g->p[SLEEVE__MID]);
+  sleeve__stop(wash, SLEEVE_UNIT, g->p[dusk ? SLEEVE__ACCENT2 : SLEEVE__PALE]);
+  sleeve__glow(g, gx, SLEEVE_UNIT + sleeve__range(r, 0, 800), SLEEVE_UNIT,
+               sleeve__range(r, 5500, 8000), radius, radius / 3,
+               g->p[SLEEVE__PALE], sleeve__range(r, 170, 220));
+  if (sleeve__chance(r, 55))
+    sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 1800, 4000),
+                 sleeve__range(r, 700, 1300), g->p[SLEEVE__ACCENT]);
 }
 
 /* Concentric rings on a ground, or a record with grooves and a label, under a faint wash. */
@@ -653,16 +657,19 @@ static void sleeve__stripes(sleeve__gen *g) {
   sleeve__rng *r = &g->rng;
   static const int16_t angles[10] = {0, 20, 45, 65, 90, 105, 115, 135, 160, 120};
   int32_t angle = angles[sleeve__below(r, 10)] + sleeve__range(r, -4, 4);
-  if (sleeve__chance(r, 55)) {
+  if (sleeve__chance(r, 65)) {
     sleeve_layer *s = sleeve__linear(g, angle);
     static const int order[5] = {SLEEVE__DEEP, SLEEVE__MID, SLEEVE__PALE, SLEEVE__ACCENT,
                                  SLEEVE__ACCENT2};
-    int count = sleeve__range(r, 2, 4), i, first = sleeve__below(r, 5);
+    int count = sleeve__range(r, 2, 4), i, first = sleeve__below(r, 3);
     int32_t at = 0;
     s->repeating = 1;
     for (i = 0; i < count; i++) {
-      int32_t w = i == 0 ? sleeve__range(r, 400, 1200) : sleeve__range(r, 120, 700);
-      sleeve__band(s, at, at + w, g->p[order[(first + i * 2) % 5]]);
+      int role = order[(first + i * 2) % 5];
+      int32_t w = i == 0 ? sleeve__range(r, 400, 1200)
+                         : (role >= SLEEVE__ACCENT ? sleeve__range(r, 100, 300)
+                                                   : sleeve__range(r, 120, 700));
+      sleeve__band(s, at, at + w, g->p[role]);
       at += w;
     }
     g->cover->base = s->stops[0].colour;
@@ -685,27 +692,47 @@ static void sleeve__stripes(sleeve__gen *g) {
   }
 }
 
-/* Hard bands across the cover, sometimes with a disc. */
+/* Hard bands across the cover in proportion, one of them sometimes a thin accent, and
+   sometimes a disc; or a sheen of translucent bands over a diagonal wash. */
 static void sleeve__bands(sleeve__gen *g) {
   sleeve__rng *r = &g->rng;
   static const int16_t angles[6] = {180, 90, 180, 0, 270, 180};
-  int32_t angle = angles[sleeve__below(r, 6)];
-  sleeve_layer *b;
   static const int order[5] = {SLEEVE__PALE, SLEEVE__MID, SLEEVE__ACCENT, SLEEVE__DEEP,
                                SLEEVE__ACCENT2};
-  int count = sleeve__range(r, 3, 4), i, first = sleeve__below(r, 5);
-  int32_t at = 0, length;
+  int32_t angle = angles[sleeve__below(r, 6)], weights[5], total = 0, at = 0, length;
+  int count = sleeve__range(r, 3, 4), thin = sleeve__chance(r, 40) ? sleeve__below(r, count) : -1;
+  int first = sleeve__below(r, 5), i;
+  sleeve_layer *b;
+  if (sleeve__chance(r, 25)) {
+    /* a sheen: a diagonal wash crossed by two translucent pale bands */
+    sleeve_layer *wash = sleeve__linear(g, sleeve__range(r, 120, 160)), *sheen;
+    int32_t a1 = sleeve__range(r, 3500, 4500), w1 = sleeve__range(r, 200, 400);
+    int32_t a2 = a1 + w1 + sleeve__range(r, 800, 1500), w2 = sleeve__range(r, 150, 300);
+    sleeve_colour c1 = sleeve__alpha(g->p[SLEEVE__PALE], sleeve__range(r, 110, 150));
+    sleeve_colour c2 = sleeve__alpha(g->p[SLEEVE__PALE], sleeve__range(r, 80, 110));
+    sleeve__stop(wash, 0, g->p[SLEEVE__PALE]);
+    sleeve__stop(wash, sleeve__along(wash, 500), g->p[SLEEVE__MID]);
+    sleeve__stop(wash, sleeve__along(wash, 1000), g->p[SLEEVE__DEEP]);
+    sheen = sleeve__linear(g, sleeve__chance(r, 50) ? 0 : sleeve__range(r, -10, 10));
+    sleeve__stop(sheen, a1, sleeve__alpha(c1, 0));
+    sleeve__band(sheen, a1, a1 + w1, c1);
+    sleeve__stop(sheen, a1 + w1, sleeve__alpha(c1, 0));
+    sleeve__stop(sheen, a2, sleeve__alpha(c2, 0));
+    sleeve__band(sheen, a2, a2 + w2, c2);
+    sleeve__stop(sheen, a2 + w2, sleeve__alpha(c2, 0));
+    return;
+  }
   if (sleeve__chance(r, 30)) angle += sleeve__range(r, -12, 12);
   b = sleeve__linear(g, angle);
   length = sleeve__along(b, 1000);
   for (i = 0; i < count; i++) {
-    int32_t w = i == count - 1 ? length - at
-                               : (sleeve__chance(r, 30) ? sleeve__range(r, 200, 500)
-                                                        : sleeve__range(r, 1500, 3500));
-    if (at + w > length) w = length - at;
-    if (w <= 0) break;
-    sleeve__band(b, at, at + w, g->p[order[(first + i) % 5]]);
-    at += w;
+    weights[i] = i == thin ? sleeve__range(r, 3, 6) : sleeve__range(r, 14, 36);
+    total += weights[i];
+  }
+  for (i = 0; i < count; i++) {
+    int32_t next = i == count - 1 ? length : at + length * weights[i] / total;
+    sleeve__band(b, at, next, g->p[order[(first + i) % 5]]);
+    at = next;
   }
   g->cover->base = b->stops[0].colour;
   if (sleeve__chance(r, 30)) {
@@ -741,7 +768,7 @@ static void sleeve__split(sleeve__gen *g) {
   }
 }
 
-/* Thin bright bars on a dark ground, two to a layer. */
+/* Thin bright bars on a dark ground that lightens at the bottom, two bars to a layer. */
 static void sleeve__bars(sleeve__gen *g) {
   sleeve__rng *r = &g->rng;
   sleeve_layer *ground = sleeve__linear(g, 180);
@@ -762,11 +789,6 @@ static void sleeve__bars(sleeve__gen *g) {
     sleeve__stop(bars, at + w, sleeve__alpha(c, 0));
     at += w + sleeve__range(r, 600, 2400);
   }
-  if (sleeve__chance(r, 40)) {
-    int32_t gy = sleeve__range(r, 6500, 8500);
-    sleeve__glow(g, 5000, gy, SLEEVE_UNIT, 4000, sleeve__range(r, 4000, 6000), 0,
-                 g->p[SLEEVE__ACCENT], sleeve__range(r, 60, 110));
-  }
 }
 
 /* Small bright dots on a night wash, sometimes with a larger moon. */
@@ -776,7 +798,7 @@ static void sleeve__constellation(sleeve__gen *g) {
   int count = sleeve__range(r, 4, 9), i, placed = 0, tries = 0;
   int32_t xs[10], ys[10];
   sleeve__stop(sky, 0, g->p[SLEEVE__DEEP]);
-  sleeve__stop(sky, SLEEVE_UNIT, g->p[SLEEVE__MID]);
+  sleeve__stop(sky, SLEEVE_UNIT, sleeve__mix_colour(g->p[SLEEVE__DEEP], g->p[SLEEVE__MID], 400));
   if (sleeve__chance(r, 35)) {
     int32_t mr = sleeve__range(r, 900, 1400);
     xs[placed] = sleeve__range(r, 2500, 7500);
@@ -794,7 +816,7 @@ static void sleeve__constellation(sleeve__gen *g) {
     }
     if (!ok) continue;
     {
-      int32_t dr = sleeve__range(r, 150, 450);
+      int32_t dr = sleeve__range(r, 200, 450);
       int role = sleeve__chance(r, 50) ? SLEEVE__ACCENT : (sleeve__chance(r, 50) ? SLEEVE__ACCENT2
                                                                              : SLEEVE__PALE);
       xs[placed] = x;
@@ -812,7 +834,7 @@ static void sleeve__grooves(sleeve__gen *g) {
                                      : (sleeve__chance(r, 50) ? 0 : SLEEVE_UNIT);
   int32_t cy = sleeve__range(r, -2000, 12000);
   sleeve_layer *rings = sleeve__radial(g, cx, cy);
-  int lines = sleeve__chance(r, 40);
+  int lines = sleeve__chance(r, 25);
   rings->repeating = 1;
   if (lines) {
     int dark = sleeve__chance(r, 50);
@@ -822,19 +844,29 @@ static void sleeve__grooves(sleeve__gen *g) {
     ink = sleeve__alpha(ink, sleeve__range(r, 70, 130));
     sleeve__band(rings, 0, pitch - w, sleeve__alpha(ink, 0));
     sleeve__band(rings, pitch - w, pitch, ink);
+  } else if (sleeve__chance(r, 50)) {
+    /* a ground and one colour */
+    int ground = sleeve__chance(r, 50) ? SLEEVE__DEEP : SLEEVE__PALE;
+    static const int others[3] = {SLEEVE__MID, SLEEVE__ACCENT, SLEEVE__ACCENT2};
+    int32_t w = sleeve__range(r, 350, 900);
+    sleeve__band(rings, 0, w, g->p[ground]);
+    sleeve__band(rings, w, w + sleeve__range(r, 150, 450), g->p[others[sleeve__below(r, 3)]]);
+    g->cover->base = g->p[ground];
   } else {
-    static const int order[5] = {SLEEVE__PALE, SLEEVE__MID, SLEEVE__DEEP, SLEEVE__ACCENT,
-                                 SLEEVE__ACCENT2};
-    int count = sleeve__range(r, 2, 3), i, first = sleeve__below(r, 5);
+    /* the deep, mid and pale tones of one family, in some order */
+    static const int orders[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1},
+                                     {2, 1, 0}};
+    const int *order = orders[sleeve__below(r, 6)];
+    int i;
     int32_t at = 0;
-    for (i = 0; i < count; i++) {
-      int32_t w = sleeve__range(r, 250, 900);
-      sleeve__band(rings, at, at + w, g->p[order[(first + i * 2) % 5]]);
+    for (i = 0; i < 3; i++) {
+      int32_t w = sleeve__range(r, 250, 800);
+      sleeve__band(rings, at, at + w, g->p[order[i]]);
       at += w;
     }
     g->cover->base = rings->stops[0].colour;
   }
-  if (sleeve__chance(r, 35)) {
+  if (sleeve__chance(r, 20)) {
     int32_t dr = sleeve__range(r, 900, 1600);
     sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 2500, 7500), dr,
                  g->p[SLEEVE__ACCENT]);
@@ -898,8 +930,11 @@ static void sleeve__checks(sleeve__gen *g) {
   }
 }
 
-static const uint8_t sleeve__composition_weights[SLEEVE_COMPOSITIONS] = {
-  14, 9, 12, 4, 12, 10, 12, 6, 7, 8, 8, 3,
+/* How often each composition is chosen; the neon mood's accents stay small marks on a dark
+   ground, so it has weights of its own. */
+static const uint8_t sleeve__composition_weights[2][SLEEVE_COMPOSITIONS] = {
+  {14, 6, 12, 4, 12, 10, 12, 6, 7, 6, 8, 3},
+  {14, 6, 12, 4, 0, 0, 0, 18, 14, 0, 0, 0},
 };
 
 void sleeve_generate(uint64_t seed, sleeve_cover *cover) {
@@ -911,8 +946,8 @@ void sleeve_generate(uint64_t seed, sleeve_cover *cover) {
   cover->generator = SLEEVE_GENERATOR;
   cover->layer_count = 0;
   cover->mood = (uint8_t)sleeve__pick(&g.rng, sleeve__mood_weights, SLEEVE_MOODS);
-  cover->composition =
-      (uint8_t)sleeve__pick(&g.rng, sleeve__composition_weights, SLEEVE_COMPOSITIONS);
+  cover->composition = (uint8_t)sleeve__pick(
+      &g.rng, sleeve__composition_weights[cover->mood == SLEEVE_NEON], SLEEVE_COMPOSITIONS);
   sleeve__palette(&g.rng, cover->mood, g.p);
   cover->palette_count = 5;
   for (i = 0; i < 5; i++) cover->palette[i] = g.p[i];
@@ -1482,6 +1517,44 @@ static void sleeve__svg_fill(sleeve__text *t, sleeve_colour c) {
   }
 }
 
+static int64_t sleeve__floor_div(int64_t n, int64_t d) {
+  int64_t q = n / d;
+  return q * d > n ? q - 1 : q;
+}
+
+/* How many of a checker's squares meet the cover. */
+static int64_t sleeve__checker_cells(const sleeve_layer *l) {
+  int64_t across = sleeve__floor_div(SLEEVE_UNIT - l->cx, l->ex) - sleeve__floor_div(-l->cx, l->ex) + 1;
+  int64_t down = sleeve__floor_div(SLEEVE_UNIT - l->cy, l->ex) - sleeve__floor_div(-l->cy, l->ex) + 1;
+  return across * down;
+}
+
+/* A checker's squares of one parity that meet the cover, as one path. */
+static void sleeve__svg_squares(sleeve__text *t, const sleeve_layer *l, int parity) {
+  int64_t s = l->ex, i, j;
+  int64_t i0 = sleeve__floor_div(-l->cx, s), i1 = sleeve__floor_div(SLEEVE_UNIT - l->cx, s);
+  int64_t j0 = sleeve__floor_div(-l->cy, s), j1 = sleeve__floor_div(SLEEVE_UNIT - l->cy, s);
+  sleeve__puts(t, "<path d=\"");
+  for (j = j0; j <= j1; j++)
+    for (i = i0; i <= i1; i++) {
+      if (((i + j) & 1) != parity) continue;
+      sleeve__put(t, 'M');
+      sleeve__int(t, l->cx + i * s);
+      sleeve__put(t, ' ');
+      sleeve__int(t, l->cy + j * s);
+      sleeve__put(t, 'h');
+      sleeve__int(t, s);
+      sleeve__put(t, 'v');
+      sleeve__int(t, s);
+      sleeve__put(t, 'h');
+      sleeve__int(t, -s);
+      sleeve__put(t, 'z');
+    }
+  sleeve__put(t, '"');
+  sleeve__svg_fill(t, l->stops[parity].colour);
+  sleeve__puts(t, "/>\n");
+}
+
 size_t sleeve_svg(const sleeve_cover *cover, int width, int height, char *out, size_t capacity) {
   sleeve__text t;
   int i;
@@ -1541,28 +1614,27 @@ size_t sleeve_svg(const sleeve_cover *cover, int width, int height, char *out, s
       sleeve__puts(&t, ">");
       sleeve__svg_stops(&t, l, end);
       sleeve__puts(&t, "</radialGradient>\n");
-    } else {
-      int32_t s = l->ex;
+    } else if (sleeve__checker_cells(l) > 4096) {
+      /* squares too small to list are a pattern, which renderers may resample */
+      int32_t side = l->ex;
+      int q;
       sleeve__puts(&t, "<pattern id=\"l");
       sleeve__int(&t, i);
       sleeve__puts(&t, "\" patternUnits=\"userSpaceOnUse\"");
       sleeve__svg_attr(&t, "x", l->cx, 1);
       sleeve__svg_attr(&t, "y", l->cy, 1);
-      sleeve__svg_attr(&t, "width", 2 * (int64_t)s, 1);
-      sleeve__svg_attr(&t, "height", 2 * (int64_t)s, 1);
+      sleeve__svg_attr(&t, "width", 2 * (int64_t)side, 1);
+      sleeve__svg_attr(&t, "height", 2 * (int64_t)side, 1);
       sleeve__puts(&t, ">");
-      {
-        int q;
-        for (q = 0; q < 4; q++) {
-          int col = q & 1, row = q >> 1;
-          sleeve__puts(&t, "<rect");
-          sleeve__svg_attr(&t, "x", (int64_t)col * s, 1);
-          sleeve__svg_attr(&t, "y", (int64_t)row * s, 1);
-          sleeve__svg_attr(&t, "width", s, 1);
-          sleeve__svg_attr(&t, "height", s, 1);
-          sleeve__svg_fill(&t, l->stops[(col + row) & 1].colour);
-          sleeve__puts(&t, "/>");
-        }
+      for (q = 0; q < 4; q++) {
+        int col = q & 1, row = q >> 1;
+        sleeve__puts(&t, "<rect");
+        sleeve__svg_attr(&t, "x", (int64_t)col * side, 1);
+        sleeve__svg_attr(&t, "y", (int64_t)row * side, 1);
+        sleeve__svg_attr(&t, "width", side, 1);
+        sleeve__svg_attr(&t, "height", side, 1);
+        sleeve__svg_fill(&t, l->stops[(col + row) & 1].colour);
+        sleeve__puts(&t, "/>");
       }
       sleeve__puts(&t, "</pattern>\n");
     }
@@ -1571,6 +1643,20 @@ size_t sleeve_svg(const sleeve_cover *cover, int width, int height, char *out, s
   sleeve__svg_fill(&t, cover->base);
   sleeve__puts(&t, "/>\n");
   for (i = 0; i < cover->layer_count; i++) {
+    const sleeve_layer *l = &cover->layers[i];
+    if (l->kind == SLEEVE_CHECKER && sleeve__checker_cells(l) <= 4096) {
+      /* the squares themselves: an opaque first colour is drawn whole beneath the second's
+         squares, so the two share no edge for a renderer to blend twice */
+      if (l->stops[0].colour.a == 255) {
+        sleeve__puts(&t, "<rect width=\"10000\" height=\"10000\"");
+        sleeve__svg_fill(&t, l->stops[0].colour);
+        sleeve__puts(&t, "/>\n");
+      } else {
+        sleeve__svg_squares(&t, l, 0);
+      }
+      sleeve__svg_squares(&t, l, 1);
+      continue;
+    }
     sleeve__puts(&t, "<rect width=\"10000\" height=\"10000\" fill=\"url(#l");
     sleeve__int(&t, i);
     sleeve__puts(&t, ")\"/>\n");

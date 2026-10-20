@@ -544,6 +544,16 @@ static void check_png(void) {
 #define SVG_OVER8_SHARE 0.002
 #define SVG_WORST 48
 
+#ifdef __wasi__
+/* WASI has no processes, so no renderer can run there. */
+static int run(const char *command) {
+  (void)command;
+  return -1;
+}
+#else
+static int run(const char *command) { return system(command); }
+#endif
+
 static void check_svg(void) {
   const char *renderer = getenv("SLEEVE_SVG_RENDERER");
   char command[8192], svg_path[2048], png_path[2048], detail[1024];
@@ -553,7 +563,7 @@ static void check_svg(void) {
   if (!renderer) renderer = "rsvg-convert";
   if (!scratch_dir) scratch_dir = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
   snprintf(command, sizeof command, "command -v %s >/dev/null 2>&1", renderer);
-  if (system(command) != 0) {
+  if (run(command) != 0) {
     report("svg", !require_svg, "skipped: no SVG renderer (rsvg-convert, or SLEEVE_SVG_RENDERER)");
     return;
   }
@@ -573,7 +583,7 @@ static void check_svg(void) {
     write_file(svg_path, svg, length);
     free(svg);
     snprintf(command, sizeof command, "%s -o '%s' '%s'", renderer, png_path, svg_path);
-    if (system(command) != 0) {
+    if (run(command) != 0) {
       ok = 0;
       continue;
     }

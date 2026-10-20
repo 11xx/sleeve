@@ -361,7 +361,9 @@ tools/browser-demo --no-open demo.html
 ```
 
 A page of ten covers, each labelled with its composition, mood and seed, redrawn from fresh
-random seeds at each press of Generate, with the time the ten took. The script compiles
+random seeds at each press of Generate, with the time the ten took. A picker redraws them in any
+of the [example styles](#example-styles), and a field takes an album's palette, 1 to 16
+`#rrggbb` colours, to draw them from instead of the style's moods. The script compiles
 `sleeve.h` for freestanding wasm32 with `tools/browser-demo.c`, the page's entry points, and
 embeds the module in `tools/browser-demo.html`, so the page opens from its file with no server.
 `WASM_CC` names a Clang that targets wasm32 with `wasm-ld` beside it (`clang` by default); the

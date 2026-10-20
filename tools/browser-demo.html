@@ -77,7 +77,7 @@ h1 {
   text-wrap: balance;
 }
 .intro p { margin: 0; color: var(--muted); text-wrap: pretty; }
-.controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.controls { display: flex; align-items: end; gap: 14px; flex-wrap: wrap; }
 button {
   font: 600 15px/1 var(--body);
   color: var(--press-ink);
@@ -91,6 +91,19 @@ button {
 button:active { transform: scale(0.97); }
 button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 button:disabled { cursor: default; opacity: 0.5; }
+.field { display: grid; gap: 4px; font: 500 12px/1.2 var(--body); color: var(--muted); }
+select, input {
+  font: 400 14px/1.2 var(--body);
+  color: var(--ink);
+  background: var(--shelf);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 9px 10px;
+  min-width: 0;
+}
+input { width: 15rem; font-family: var(--data); font-size: 13px; }
+select:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+input[aria-invalid="true"] { border-color: #c4392f; }
 .timing {
   margin: 0;
   font: 400 13px/1.4 var(--data);
@@ -150,9 +163,11 @@ footer p { margin: 0; max-width: 62ch; }
   <header>
     <div class="intro">
       <h1>sleeve</h1>
-      <p>Stand-in album covers, drawn from a 64-bit seed by the sleeve library compiled to WebAssembly. Each press shuffles in ten new seeds.</p>
+      <p>Stand-in album covers, drawn from a 64-bit seed by the sleeve library compiled to WebAssembly. Each press shuffles in ten new seeds; a style reshapes them, and an album's palette recolours them.</p>
     </div>
     <div class="controls">
+      <label class="field">Style <select id="style"></select></label>
+      <label class="field">Album palette <input id="palette" placeholder="#264653, #e9c46a, #e76f51" spellcheck="false" autocomplete="off"></label>
       <p class="timing" id="timing" aria-live="polite"></p>
       <button type="button" id="generate">Generate</button>
     </div>
@@ -160,7 +175,7 @@ footer p { margin: 0; max-width: 62ch; }
   <ul class="shelf" id="shelf"></ul>
   <p class="problem" id="problem" hidden></p>
   <footer>
-    <p>A seed always draws the same cover, so an app can key covers by an album's identity. Every cover is painted layers: horizons, discs, grooves, stripes, checkers and constellations, rasterized per pixel at the size shown.</p>
+    <p>A seed always draws the same cover in the same style, so an app can key covers by an album's identity. Every cover is painted layers: horizons, discs, grooves, stripes, checkers and constellations, rasterized per pixel at the size shown. Styles: <em>default</em>; <em>riso</em>, every palette printed in two inks under fine lines; <em>brand</em>, pinned to a navy, cream and amber identity; <em>gallery</em>, three compositions framed on a mat. A palette of 1 to 16 colours takes the place of the style's moods.</p>
   </footer>
 </div>
 
@@ -172,12 +187,15 @@ footer p { margin: 0; max-width: 62ch; }
   const names = {
     "paper-warm": "warm paper",
     "paper-cool": "cool paper",
+    given: "given palette",
   };
 
   const shelf = document.getElementById("shelf");
   const button = document.getElementById("generate");
   const timing = document.getElementById("timing");
   const problem = document.getElementById("problem");
+  const stylePicker = document.getElementById("style");
+  const paletteField = document.getElementById("palette");
   let exports = null;
   let seeds = [];
 
@@ -241,6 +259,33 @@ footer p { margin: 0; max-width: 62ch; }
     }
   }
 
+  function chooseStyle() {
+    exports.set_style(Number(stylePicker.value));
+    draw(false);
+  }
+
+  // #rrggbb colours separated by commas or spaces: their bytes, or null when malformed
+  function parsePalette(text) {
+    const words = text.split(/[\s,]+/).filter(Boolean);
+    if (words.length > 16) return null;
+    const bytes = [];
+    for (const word of words) {
+      const m = /^#?([0-9a-f]{6})$/i.exec(word);
+      if (!m) return null;
+      for (let k = 0; k < 6; k += 2) bytes.push(parseInt(m[1].slice(k, k + 2), 16));
+    }
+    return bytes;
+  }
+
+  function choosePalette() {
+    const bytes = parsePalette(paletteField.value);
+    paletteField.setAttribute("aria-invalid", bytes ? "false" : "true");
+    if (!bytes) return;
+    new Uint8Array(exports.memory.buffer, exports.palette(), bytes.length).set(bytes);
+    exports.set_palette(bytes.length / 3);
+    draw(false);
+  }
+
   function shuffle() {
     const words = new Uint32Array(COUNT * 2);
     crypto.getRandomValues(words);
@@ -264,6 +309,14 @@ footer p { margin: 0; max-width: 62ch; }
   WebAssembly.instantiate(bytes, {})
     .then(({ instance }) => {
       exports = instance.exports;
+      for (let i = 0; i < exports.style_count(); i++) {
+        const option = document.createElement("option");
+        option.value = String(i);
+        option.textContent = text(exports.style_name(i));
+        stylePicker.append(option);
+      }
+      stylePicker.addEventListener("change", chooseStyle);
+      paletteField.addEventListener("input", choosePalette);
       button.disabled = false;
       button.addEventListener("click", shuffle);
       shuffle();

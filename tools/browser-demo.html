@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sleeve covers</title>
+<style>
+/* A record shelf: ten sleeves face out on a quiet graphite ground; the covers carry all the colour. */
+:root {
+  --ground: #e8eaee;
+  --shelf: #f5f6f8;
+  --ink: #16181c;
+  --muted: #5b626e;
+  --rule: #d3d7de;
+  --press: #16181c;
+  --press-ink: #f5f6f8;
+  --focus: #2f62e6;
+  --sleeve-shadow: 0 1px 2px rgb(22 24 28 / 0.18), 0 6px 18px -8px rgb(22 24 28 / 0.35);
+  --display: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", "Noto Sans", system-ui, sans-serif;
+  --body: system-ui, "Segoe UI", "Noto Sans", "Helvetica Neue", Arial, sans-serif;
+  --data: ui-monospace, "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #111317;
+    --shelf: #191c21;
+    --ink: #e7e9ed;
+    --muted: #9aa1ad;
+    --rule: #2a2e35;
+    --press: #e7e9ed;
+    --press-ink: #111317;
+    --focus: #7d9dff;
+    --sleeve-shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 22px -10px rgb(0 0 0 / 0.8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #111317;
+  --shelf: #191c21;
+  --ink: #e7e9ed;
+  --muted: #9aa1ad;
+  --rule: #2a2e35;
+  --press: #e7e9ed;
+  --press-ink: #111317;
+  --focus: #7d9dff;
+  --sleeve-shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 22px -10px rgb(0 0 0 / 0.8);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--body);
+}
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-block: 40px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 28px;
+}
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px 32px;
+}
+.intro { min-width: 0; max-width: 34rem; display: grid; gap: 6px; }
+h1 {
+  margin: 0;
+  font: 600 clamp(34px, 5vw, 48px)/1 var(--display);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.intro p { margin: 0; color: var(--muted); text-wrap: pretty; }
+.controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+button {
+  font: 600 15px/1 var(--body);
+  color: var(--press-ink);
+  background: var(--press);
+  border: 0;
+  border-radius: 999px;
+  padding: 13px 26px;
+  cursor: pointer;
+  transition: transform 80ms ease-out;
+}
+button:active { transform: scale(0.97); }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+button:disabled { cursor: default; opacity: 0.5; }
+.timing {
+  margin: 0;
+  font: 400 13px/1.4 var(--data);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 28px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 860px) { .shelf { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 14px; } }
+.sleeve { display: grid; gap: 10px; min-width: 0; }
+canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--shelf);
+  box-shadow: var(--sleeve-shadow);
+}
+.label { display: grid; gap: 1px; min-width: 0; }
+.kind { font: 500 14px/1.3 var(--body); }
+.seed {
+  font: 400 12px/1.4 var(--data);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.fresh canvas { animation: arrive 220ms ease-out both; animation-delay: calc(var(--i) * 22ms); }
+@keyframes arrive { from { opacity: 0.35; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .fresh canvas { animation: none; } }
+.problem {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--shelf);
+}
+footer {
+  border-top: 1px solid var(--rule);
+  padding-top: 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+footer p { margin: 0; max-width: 62ch; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="intro">
+      <h1>sleeve</h1>
+      <p>Stand-in album covers, drawn from a 64-bit seed by the sleeve library compiled to WebAssembly. Each press shuffles in ten new seeds.</p>
+    </div>
+    <div class="controls">
+      <p class="timing" id="timing" aria-live="polite"></p>
+      <button type="button" id="generate">Generate</button>
+    </div>
+  </header>
+  <ul class="shelf" id="shelf"></ul>
+  <p class="problem" id="problem" hidden></p>
+  <footer>
+    <p>A seed always draws the same cover, so an app can key covers by an album's identity. Every cover is painted layers: horizons, discs, grooves, stripes, checkers and constellations, rasterized per pixel at the size shown.</p>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const COUNT = 10;
+  const LARGEST = 640;
+  const wasm = "__SLEEVE_WASM_BASE64__";
+  const names = {
+    "paper-warm": "warm paper",
+    "paper-cool": "cool paper",
+  };
+
+  const shelf = document.getElementById("shelf");
+  const button = document.getElementById("generate");
+  const timing = document.getElementById("timing");
+  const problem = document.getElementById("problem");
+  let exports = null;
+  let seeds = [];
+
+  const slots = Array.from({ length: COUNT }, (_, i) => {
+    const item = document.createElement("li");
+    item.className = "sleeve";
+    item.style.setProperty("--i", i);
+    const canvas = document.createElement("canvas");
+    canvas.setAttribute("role", "img");
+    const label = document.createElement("div");
+    label.className = "label";
+    const kind = document.createElement("span");
+    kind.className = "kind";
+    const seed = document.createElement("span");
+    seed.className = "seed";
+    label.append(kind, seed);
+    item.append(canvas, label);
+    shelf.append(item);
+    return { item, canvas, kind, seed };
+  });
+
+  const text = (pointer) => {
+    const memory = new Uint8Array(exports.memory.buffer);
+    let s = "";
+    while (memory[pointer]) s += String.fromCharCode(memory[pointer++]);
+    return s;
+  };
+  const hex = (n) => n.toString(16).padStart(8, "0");
+
+  function pixelSize() {
+    const width = slots[0].canvas.getBoundingClientRect().width || 200;
+    return Math.max(32, Math.min(LARGEST, Math.round(width * (window.devicePixelRatio || 1))));
+  }
+
+  function draw(fresh) {
+    const size = pixelSize();
+    let spent = 0;
+    seeds.forEach(([hi, lo], i) => {
+      const slot = slots[i];
+      const start = performance.now();
+      const ok = exports.cover(hi, lo, size) === 0;
+      spent += performance.now() - start;
+      if (!ok) return;
+      const pixels = new Uint8ClampedArray(exports.memory.buffer, exports.pixels(), size * size * 4);
+      slot.canvas.width = size;
+      slot.canvas.height = size;
+      slot.canvas.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(pixels), size, size), 0, 0);
+      const composition = text(exports.composition());
+      const mood = text(exports.mood());
+      const moodName = names[mood] || mood;
+      const seed = "0x" + hex(hi) + hex(lo);
+      slot.kind.textContent = composition + ", " + moodName;
+      slot.seed.textContent = seed;
+      slot.canvas.setAttribute("aria-label", "Cover: " + composition + ", " + moodName + ", seed " + seed);
+    });
+    timing.textContent = COUNT + " covers at " + size + " px in " + spent.toFixed(1) + " ms";
+    if (fresh) {
+      shelf.classList.remove("fresh");
+      void shelf.offsetWidth;
+      shelf.classList.add("fresh");
+    }
+  }
+
+  function shuffle() {
+    const words = new Uint32Array(COUNT * 2);
+    crypto.getRandomValues(words);
+    seeds = Array.from({ length: COUNT }, (_, i) => [words[2 * i], words[2 * i + 1]]);
+    draw(true);
+  }
+
+  let resizeTimer = 0;
+  let lastSize = 0;
+  new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (!exports || !seeds.length) return;
+      const size = pixelSize();
+      if (Math.abs(size - lastSize) > 8) { lastSize = size; draw(false); }
+    }, 150);
+  }).observe(shelf);
+
+  button.disabled = true;
+  const bytes = Uint8Array.from(atob(wasm), (c) => c.charCodeAt(0));
+  WebAssembly.instantiate(bytes, {})
+    .then(({ instance }) => {
+      exports = instance.exports;
+      button.disabled = false;
+      button.addEventListener("click", shuffle);
+      shuffle();
+      lastSize = pixelSize();
+    })
+    .catch((error) => {
+      shelf.hidden = true;
+      problem.hidden = false;
+      problem.textContent = "The covers could not be drawn: this browser would not start the WebAssembly module (" + error.message + ").";
+    });
+})();
+</script>
+</body>
+</html>

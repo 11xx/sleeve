@@ -125,6 +125,20 @@ A seed is a decimal number, a `0x` hexadecimal one, or `key:TEXT` for `sleeve_ha
 bytes. `cover` writes one file to `--out`, or several into the directory it names, each named by
 its seed; `sheet` writes COUNT covers from `--first` on, in a grid, as one PNG.
 
+## The browser demo
+
+```sh
+tools/browser-demo                     # builds build/browser-demo.html and opens it
+tools/browser-demo --no-open demo.html
+```
+
+A page of ten covers, each labelled with its composition, mood and seed, redrawn from fresh
+random seeds at each press of Generate, with the time the ten took. The script compiles
+`sleeve.h` for freestanding wasm32 with `tools/browser-demo.c`, the page's entry points, and
+embeds the module in `tools/browser-demo.html`, so the page opens from its file with no server.
+`WASM_CC` names a Clang that targets wasm32 with `wasm-ld` beside it (`clang` by default); the
+script also needs Python 3.
+
 ## Building
 
 `sleeve.h` is C99 and builds without warnings under `-Wall -Wextra -Wpedantic -Werror`:

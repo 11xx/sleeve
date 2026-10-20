@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Builds sleeve's browser demo and opens it: a page of ten covers, redrawn from fresh seeds at
+# each press of Generate by sleeve.h compiled to WebAssembly. The module is embedded in the page,
+# so the page opens from a file with no server.
+#   browser-demo [--no-open] [OUT.html]
+# OUT.html defaults to build/browser-demo.html. --no-open only builds it.
+#   WASM_CC   a Clang that targets wasm32 with wasm-ld beside it, clang by default
+set -euo pipefail
+
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+open=1
+if [[ ${1:-} == --no-open ]]; then
+  open=0
+  shift
+fi
+out=${1:-$(dirname "$here")/build/browser-demo.html}
+mkdir -p "$(dirname "$out")"
+module=$(mktemp)
+trap 'rm -f "$module"' EXIT
+
+"${WASM_CC:-clang}" --target=wasm32 -std=c99 -O2 -Wall -Wextra -Werror -nostdlib \
+  -Wl,--no-entry -Wl,--strip-all -o "$module" "$here/browser-demo.c"
+
+python3 -I - "$here/browser-demo.html" "$module" "$out" <<'EOF'
+import base64, pathlib, sys
+template, module, out = (pathlib.Path(p) for p in sys.argv[1:])
+page = template.read_text()
+encoded = base64.b64encode(module.read_bytes()).decode("ascii")
+out.write_text(page.replace("__SLEEVE_WASM_BASE64__", encoded, 1))
+EOF
+
+echo "$out"
+if [[ $open == 1 ]]; then
+  if command -v xdg-open >/dev/null; then
+    xdg-open "$out" >/dev/null 2>&1 &
+  elif command -v open >/dev/null; then
+    open "$out"
+  else
+    echo "browser-demo: open $out in a browser" >&2
+  fi
+fi

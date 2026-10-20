@@ -854,11 +854,11 @@ static void sleeve__grooves(sleeve__gen *g) {
     sleeve__band(rings, pitch - w, pitch, ink);
   } else if (sleeve__chance(r, 50)) {
     /* a ground and one colour */
-    int ground = sleeve__chance(r, 50) ? SLEEVE__DEEP : SLEEVE__PALE;
     static const int others[3] = {SLEEVE__MID, SLEEVE__ACCENT, SLEEVE__ACCENT2};
-    int32_t w = sleeve__range(r, 350, 900);
+    int ground = sleeve__chance(r, 50) ? SLEEVE__DEEP : SLEEVE__PALE;
+    int32_t w = sleeve__range(r, 350, 900), w2 = sleeve__range(r, 150, 450);
+    int other = others[sleeve__below(r, 3)];
     sleeve__band(rings, 0, w, g->p[ground]);
-    int32_t w2 = sleeve__range(r, 150, 450), other = others[sleeve__below(r, 3)];
     sleeve__band(rings, w, w + w2, g->p[other]);
     g->cover->base = g->p[ground];
   } else {
@@ -975,22 +975,15 @@ void sleeve_generate(uint64_t seed, sleeve_cover *cover) {
   case SLEEVE_ORBS: sleeve__orbs(&g); break;
   default: sleeve__checks(&g); break;
   }
+  /* unused layers are zero, so equal covers are equal bytes */
   for (i = cover->layer_count; i < SLEEVE_MAX_LAYERS; i++) {
+    sleeve_layer *l = &cover->layers[i];
     int j;
-    cover->layers[i].kind = 0;
-    cover->layers[i].repeating = 0;
-    cover->layers[i].stop_count = 0;
-    cover->layers[i].reserved = 0;
-    cover->layers[i].angle = 0;
-    cover->layers[i].cx = cover->layers[i].cy = 0;
-    cover->layers[i].ex = cover->layers[i].ey = 0;
+    l->kind = l->repeating = l->stop_count = l->reserved = 0;
+    l->angle = l->cx = l->cy = l->ex = l->ey = 0;
     for (j = 0; j < SLEEVE_MAX_STOPS; j++) {
-      cover->layers[i].stops[j].at = 0;
-      cover->layers[i].stops[j].colour = cover->base;
-      cover->layers[i].stops[j].colour.a = 0;
-      cover->layers[i].stops[j].colour.r = 0;
-      cover->layers[i].stops[j].colour.g = 0;
-      cover->layers[i].stops[j].colour.b = 0;
+      l->stops[j].at = 0;
+      l->stops[j].colour.r = l->stops[j].colour.g = l->stops[j].colour.b = l->stops[j].colour.a = 0;
     }
   }
 }

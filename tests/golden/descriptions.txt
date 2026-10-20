@@ -1,0 +1,143 @@
+seed 0
+sleeve 1 split paper-warm
+palette #1b3148 #c25634 #f1ead9 #e8674a #e6b971
+base #1b3148
+linear 60 : #1b3148ff@0 #1b3148ff@6434 #e8674aff@6434 #e8674aff@13660
+linear 155 : #e6b97100@4864 #e6b971ff@4864 #e6b971ff@6362 #e6b97100@6362
+radial 3919 5185 10000 10000 : #f1ead9ff@0 #f1ead9ff@1435 #f1ead900@1435
+seed 1
+sleeve 1 orbs sea
+palette #002a36 #3297a4 #c7edec #eecb86 #69c0ac
+base #002a36
+linear 136 : #002a36ff@0 #3297a4ff@14140
+radial -890 8333 10000 6641 : #69c0acff@0 #69c0acff@4655 #69c0ac00@4655
+radial 9995 -163 10000 7223 : #3297a4ff@0 #3297a4ff@3578 #3297a400@3578
+seed 2
+sleeve 1 glow garden
+palette #1d432d #7da672 #e9e6bb #c990d2 #f8ce76
+base #1d432d
+linear 180 : #7da672ff@0 #e9e6bbff@10000
+radial 5465 10284 10000 6694 : #e9e6bbca@0 #e9e6bbca@1922 #e9e6bb00@5766
+radial 2868 2560 10000 10000 : #c990d2ff@0 #c990d2ff@923 #c990d200@923
+seed 3
+sleeve 1 constellation earth
+palette #473316 #ae6f4a #f7e2cd #41775a #b05a3e
+base #473316
+linear 180 : #473316ff@0 #704b2bff@10000
+radial 6462 3569 10000 10000 : #f7e2cdff@0 #f7e2cdff@381 #f7e2cd00@381
+radial 5048 7491 10000 10000 : #41775aff@0 #41775aff@262 #41775a00@262
+radial 2582 5485 10000 10000 : #41775aff@0 #41775aff@309 #41775a00@309
+radial 1415 3997 10000 10000 : #b05a3eff@0 #b05a3eff@314 #b05a3e00@314
+radial 3580 3715 10000 10000 : #b05a3eff@0 #b05a3eff@254 #b05a3e00@254
+seed 4
+sleeve 1 bands paper-cool
+palette #15294f #4d6ec9 #eeebd7 #3f91c9 #d5c074
+base #4d6ec9
+linear 0 : #4d6ec9ff@0 #4d6ec9ff@3508 #3f91c9ff@3508 #3f91c9ff@9122 #15294fff@9122 #15294fff@10000
+seed 5
+sleeve 1 stripes sea
+palette #05313f #418b96 #d6f5f6 #edcc8d #55b6b0
+base #d6f5f6
+repeating linear 121 : #d6f5f6ff@0 #d6f5f6ff@1101 #55b6b0ff@1101 #55b6b0ff@1247 #418b96ff@1247 #418b96ff@1459 #edcc8dff@1459 #edcc8dff@1618
+seed 6
+sleeve 1 bars neon
+palette #0b0b35 #3c3068 #ffdb95 #fe3683 #4bdee6
+base #0b0b35
+linear 180 : #0b0b35ff@0 #0b0b35ff@7970 #3c3068ff@10000
+linear 96 : #fe368300@2710 #fe3683ff@2710 #fe3683ff@2936 #fe368300@2936 #4bdee600@3826 #4bdee6ff@3826 #4bdee6ff@4014 #4bdee600@4014
+linear 96 : #ffdb9500@5620 #ffdb95ff@5620 #ffdb95ff@5850 #ffdb9500@5850
+seed 7
+sleeve 1 disc duotone
+palette #023e5b #037cb6 #efe2cc #e19342 #aabde8
+base #037cb6
+radial 5000 5000 10000 10000 : #e19342ff@0 #e19342ff@2104 #efe2ccff@2104 #efe2ccff@2403 #efe2cc00@2403
+linear 141 : #efe2cc00@0 #efe2cc3c@14065
+seed 8
+sleeve 1 constellation neon
+palette #121038 #302658 #ffe377 #fe508e #39dbf0
+base #121038
+linear 180 : #121038ff@0 #1e1945ff@10000
+radial 3109 5631 10000 10000 : #ffe377ff@0 #ffe377ff@429 #ffe37700@429
+radial 1236 8185 10000 10000 : #fe508eff@0 #fe508eff@447 #fe508e00@447
+radial 2004 2738 10000 10000 : #ffe377ff@0 #ffe377ff@324 #ffe37700@324
+radial 7522 2502 10000 10000 : #39dbf0ff@0 #39dbf0ff@419 #39dbf000@419
+radial 4869 3301 10000 10000 : #ffe377ff@0 #ffe377ff@328 #ffe37700@328
+seed 9
+sleeve 1 split dusk
+palette #361f41 #ac5586 #fed6b3 #fa9473 #cc6185
+base #361f41
+linear 32 : #ac5586ff@0 #ac5586ff@7799 #fed6b3ff@7799 #fed6b3ff@13780
+linear 142 : #cc618500@6948 #cc6185ff@6948 #cc6185ff@8209 #cc618500@8209
+seed 10
+sleeve 1 bands sea
+palette #003437 #007c7a #cbf3ec #ffceb4 #6cb092
+base #007c7a
+linear 180 : #007c7aff@0 #007c7aff@2592 #ffceb4ff@2592 #ffceb4ff@4351 #003437ff@4351 #003437ff@7313 #6cb092ff@7313 #6cb092ff@10000
+seed 11
+sleeve 1 split earth
+palette #3b2519 #af622b #fbd3ba #507457 #b2564a
+base #3b2519
+linear 337 : #3b2519ff@0 #3b2519ff@6753 #507457ff@6753 #507457ff@13112
+linear 408 : #b2564a00@8516 #b2564aff@8516 #b2564aff@9374 #b2564a00@9374
+seed 12
+sleeve 1 horizon duotone
+palette #00325d #5e82cc #efceb7 #cb9826 #b1b9e3
+base #00325d
+linear 179 : #5e82ccff@0 #efceb7ff@4863
+radial 5291 4780 10000 10000 : #cb9826ff@0 #cb9826ff@917 #cb982600@917
+linear 179 : #b1b9e300@4863 #b1b9e3ff@4863 #b1b9e3ff@5001 #00325dff@5001 #00325dff@10173
+seed 13
+sleeve 1 disc garden
+palette #2b4424 #8d9860 #edefbd #d198d0 #fecb6a
+base #8d9860
+repeating radial 5000 5000 10000 10000 : #edefbd00@0 #edefbd00@87 #edefbd2c@87 #edefbd2c@175
+radial 5000 5000 10000 10000 : #2b442400@4239 #2b4424ff@4239
+radial 5000 5000 10000 10000 : #fecb6aff@0 #fecb6aff@1363 #fecb6a00@1363
+radial 5000 5000 10000 10000 : #2b4424ff@0 #2b4424ff@194 #2b442400@194
+linear 192 : #edefbd00@0 #edefbd3c@11861
+seed 14
+sleeve 1 checks duotone
+palette #383400 #748912 #d8cff3 #99a9fd #9ac691
+base #d8cff3
+checker 0 0 681 : #d8cff3ff@0 #748912ff@0
+radial 5000 5000 10000 10000 : #99a9fdff@0 #99a9fdff@2958 #d8cff3ff@2958 #d8cff3ff@3499 #d8cff300@3499
+seed 15
+sleeve 1 bands paper-warm
+palette #20314d #c3554e #f1e8da #d34e5d #e5b17d
+base #20314d
+linear 143 : #f1e8daff@0 #c3554eff@7003 #20314dff@14005
+linear -10 : #f1e8da00@3688 #f1e8da85@3688 #f1e8da85@3981 #f1e8da00@3981 #f1e8da00@5034 #f1e8da62@5034 #f1e8da62@5331 #f1e8da00@5331
+seed 4294967295
+sleeve 1 disc duotone
+palette #003a1c #389e77 #ecd1e6 #ca8dc6 #7ecfc0
+base #003a1c
+radial 5000 5000 10000 10000 : #ca8dc6ff@0 #ca8dc6ff@2295 #ecd1e6ff@2295 #ecd1e6ff@2817 #389e77ff@2817 #389e77ff@3104 #389e7700@3104
+seed 18446744073709551615
+sleeve 1 split mist
+palette #3c4652 #86919c #e0e5eb #e6a889 #536f86
+base #3c4652
+linear 61 : #86919cff@0 #86919cff@7844 #e0e5ebff@7844 #e0e5ebff@13594
+radial 7387 5653 10000 10000 : #e6a889ff@0 #e6a889ff@2068 #e6a88900@2068
+seed key:
+sleeve 1 split garden
+palette #1f512e #93aa74 #ebf0ba #d1a4ed #f4cf61
+base #1f512e
+linear 271 : #1f512eff@0 #1f512eff@4924 #ebf0baff@4924 #ebf0baff@10173
+radial 4127 5430 10000 10000 : #d1a4edff@0 #d1a4edff@1961 #d1a4ed00@1961
+seed key:Album Title	Artist
+sleeve 1 disc sea
+palette #02353f #3b8b96 #d6ebee #eec79d #73c4b6
+base #02353f
+repeating radial 5000 5000 10000 10000 : #d6ebee00@0 #d6ebee00@47 #d6ebee1c@47 #d6ebee1c@95
+radial 5000 5000 10000 10000 : #d6ebee00@3333 #d6ebeeff@3333
+radial 5000 5000 10000 10000 : #eec79dff@0 #eec79dff@935 #eec79d00@935
+radial 5000 5000 10000 10000 : #d6ebeeff@0 #d6ebeeff@206 #d6ebee00@206
+seed key:サウンド
+sleeve 1 horizon paper-warm
+palette #2a2f44 #c45a46 #f1ecd7 #e96940 #e2ae73
+base #2a2f44
+linear 180 : #c45a46ff@0 #f1ecd7ff@4500
+radial 6828 1998 10000 10000 : #e96940ff@0 #e96940ff@1498 #e9694000@1498
+linear 180 : #e2ae7300@4500 #e2ae73ff@4500 #e2ae73ff@4930 #2a2f44ff@4930 #2a2f44ff@10000
+linear 180 : #f1ecd700@5406 #f1ecd78b@5406 #f1ecd78b@5475 #f1ecd700@5475 #f1ecd700@5951 #f1ecd78b@5951 #f1ecd78b@6020 #f1ecd700@6020
+digest of seeds 0 to 19999: e0ad4a9226bedec6

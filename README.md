@@ -162,8 +162,8 @@ and rasterized within 1.25× of C's time, otherwise C. `bench/` holds the measur
 port written for speed (strict loops over unboxed arrays, nothing allocated per pixel) that
 produces identical descriptions and rasters, a harness that times both on the same 1,000 seeds at
 64, 216 and 512 px, and the runners for each host. `results/20261020T1931Z-language/` holds the
-reports. Haskell took 1.20–1.53× C's time natively on the desktop and 2.2× in a browser, so the
-library is C; the Haskell port stays in `bench/` only as the measurement's comparison, built and
+reports. Haskell took 1.20–1.53× C's time natively on the desktop, 2.2× in a browser and 2.6–3.1×
+under WAMR on an Android phone, so the library is C; the Haskell port stays in `bench/` only as the measurement's comparison, built and
 checked against `sleeve.h` by `bench`'s own `check`, and is not maintained as a second
 implementation.
 

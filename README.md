@@ -216,6 +216,23 @@ static const sleeve_style_part parts[] = {{"ringed-horizon", ringed_horizon, 0, 
 A built-in called first draws exactly what it draws alone, since the hook's own draws come
 after it; `sleeve_layers_left` then says whether there is room for more.
 
+Every builder call takes any value of its arguments, with defined results and in bounded time.
+Each brings a value outside its domain to the nearest within it:
+
+| Call | Domain |
+| --- | --- |
+| `sleeve_below(b, n)`, `sleeve_range(b, lo, hi)`, `sleeve_chance(b, percent)` | any: `n` of 1 or less gives 0, `hi` below `lo` gives `lo`, `percent` 0 or less never and 100 or more always |
+| `sleeve_pick(b, weights, n)` | the first `n` weights, at most `SLEEVE_MAX_PICK` (32,768) of them, whose sum always fits an `int32_t`; weights beyond are never picked, and weights summing to 0 pick the last |
+| `sleeve_add_layer(b, kind, repeating)` | `repeating` other than 0 is 1; a `kind` outside `enum sleeve_kind` makes a layer generation drops |
+| `sleeve_add_glow(..., alpha)`, `sleeve_alpha(c, alpha)` | alpha 0 to 255 |
+| `sleeve_mix(a, b, thousandths)` | 0 to 1000 |
+| `sleeve_along(l, thousandths)` | −100,000 to 100,000, a hundred lengths either way |
+| `sleeve_oklch(lightness, chroma, hue)` | lightness 0 to 1000; chroma 0 up, a chroma beyond 400 lowered by its steps of 4 as one out of gamut, since none beyond 322 is in it; any hue |
+| `sleeve_to_oklch`, `sleeve_layers_left`, `sleeve_add_stop`, `sleeve_add_band`, positions and sizes | any: positions, sizes and stops are kept as given, and generation drops a layer they leave invalid |
+
+The builder pointer, the layer pointers it returns and `weights` must be valid, `weights`
+holding the weights picked from.
+
 Whatever a hook does through the builder, the cover stays within `SLEEVE_MAX_LAYERS` and
 `SLEEVE_MAX_STOPS` and passes `sleeve_check`:
 
@@ -412,6 +429,7 @@ repository's root runs `make check`.
 | builder | a horizon with a ring over it and a disc on a ground, both on the builder, pass `sleeve_check` and render as drawn, the horizon as it draws alone; the budget and generator answer as documented | a disc without its closing stop |
 | containment | hooks adding 30 layers of 12 falling stops, or writing invalid layers, counts, base and palette, leave covers that pass `sleeve_check` with a finisher's layers on top; 3,000 styles of built-in pieces with random parameters in range pass too | no layers kept for finishers; invalid layers kept |
 | parameters | the 90 named indices are `sleeve_find_param`'s and the 21 pieces' defaults their own; each piece run by hand with every parameter at `INT32_MIN` or `INT32_MAX` draws as at its lowest or highest | two named indices swapped; values taken outside their ranges |
+| domains | `sleeve_pick` weighs `SLEEVE_MAX_PICK` weights and no more; `sleeve_oklch`, `sleeve_alpha`, `sleeve_mix`, `sleeve_along` and `sleeve_add_glow` take values beyond their domains as the nearest within, chroma beyond 400 by its steps of 4; a repeating flag is 0 or 1 | each of those calls taking its argument unbrought |
 | style-check | 17 invalid styles are refused, each for its reason; the default, example and empty styles are accepted | a parameter above its `at_most` accepted |
 | style-hash | equal styles fingerprint equal, `NULL` parameters as the defaults and names aside; each of 13 changes that decide covers changes the fingerprint | a code hook's version left out |
 | given-palette | five colours take their roles in all 120 orders; single colours, and black with white, take theirs with tones derived; 0 and 17 colours are refused; covers keep the colours as assigned, of mood `given`, without palette hooks | deep taken as the lightest |

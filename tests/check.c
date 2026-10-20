@@ -829,12 +829,14 @@ static sleeve_cover one_layer(int kind) {
   return c;
 }
 
-/* What a check that has not finished by its deadline was doing. */
-static const char *deadline_what = "";
+/* The check that has not finished by its deadline, and what it was doing. */
+static const char *deadline_check = "", *deadline_what = "";
 
 static void deadline_passed(int sig) {
-  static const char head[] = "FAIL extremes: did not finish within 20 s: ";
+  static const char head[] = "FAIL ", middle[] = ": did not finish within 20 s: ";
   ssize_t written = write(1, head, sizeof head - 1);
+  written += write(1, deadline_check, strlen(deadline_check));
+  written += write(1, middle, sizeof middle - 1);
   written += write(1, deadline_what, strlen(deadline_what));
   written += write(1, "\n", 1);
   (void)sig;
@@ -903,6 +905,7 @@ static void check_extremes(void) {
     l->ex = 100 * SLEEVE_UNIT;
     l->ey = 1;
     l->stops[1].at = 5 * SLEEVE_UNIT;
+    deadline_check = "extremes";
     deadline_what = "a repeating ellipse 100 sides from its centre over 1 x 16384 pixels";
     fflush(stdout);
     signal(SIGALRM, deadline_passed);
@@ -1571,6 +1574,64 @@ static void check_parameters(void) {
   report("parameters", !failed, detail);
 }
 
+/* The builder's calls bring any argument within their domains: a pick weighs at most
+   SLEEVE_MAX_PICK weights, OKLCH lightness is 0 to 1000 and chroma 0 up, hue any, alpha 0 to
+   255, a mix 0 to 1000 thousandths, a position along a line -100 to 100 lengths. */
+static void check_domains(void) {
+  static uint16_t weights[SLEEVE_MAX_PICK + 1];
+  sleeve_builder b;
+  sleeve_cover c;
+  sleeve_colour grey = hex(0x646464), black = hex(0);
+  sleeve_layer *l;
+  const char *failed = 0;
+  char detail[512];
+  int i, seen = 0;
+  hand_builder(&b, &c, 7);
+  for (i = 0; i <= SLEEVE_MAX_PICK; i++) weights[i] = UINT16_MAX;
+  for (i = 0; i < 200; i++) seen |= sleeve_pick(&b, weights, SLEEVE_MAX_PICK + 1) >= SLEEVE_MAX_PICK;
+  memset(weights, 0, sizeof weights);
+  weights[SLEEVE_MAX_PICK] = UINT16_MAX;
+  if (seen || sleeve_pick(&b, weights, SLEEVE_MAX_PICK + 1) != SLEEVE_MAX_PICK - 1)
+    failed = "sleeve_pick weighed a weight beyond SLEEVE_MAX_PICK";
+  deadline_check = "domains";
+  deadline_what = "sleeve_oklch with chroma INT32_MAX";
+  fflush(stdout);
+  signal(SIGALRM, deadline_passed);
+  alarm(20);
+  if (!failed && (!same_colour(sleeve_oklch(INT32_MAX, 0, 0), sleeve_oklch(1000, 0, 0)) ||
+                  !same_colour(sleeve_oklch(INT32_MIN, 50, 10), sleeve_oklch(0, 50, 10))))
+    failed = "sleeve_oklch took a lightness beyond 0 to 1000 as other than the nearest";
+  else if (!failed && (!same_colour(sleeve_oklch(600, 1000000, 30), sleeve_oklch(600, 400, 30)) ||
+                       !same_colour(sleeve_oklch(600, 1000001, 30), sleeve_oklch(600, 397, 30)) ||
+                       !same_colour(sleeve_oklch(600, INT32_MAX, 30), sleeve_oklch(600, 399, 30)) ||
+                       !same_colour(sleeve_oklch(600, -5, 30), sleeve_oklch(600, 0, 30))))
+    failed = "sleeve_oklch lowered a chroma beyond 400 apart from its steps of 4, or took one "
+             "below 0 as other than 0";
+  else if (!failed && !same_colour(sleeve_oklch(600, 120, INT32_MIN), sleeve_oklch(600, 120, 232)))
+    failed = "sleeve_oklch took hue INT32_MIN as other than 232";
+  alarm(0);
+  if (!failed && (sleeve_alpha(grey, 300).a != 255 || sleeve_alpha(grey, -1).a != 0))
+    failed = "sleeve_alpha took an alpha beyond 0 to 255 as other than the nearest";
+  else if (!failed && (!same_colour(sleeve_mix(black, grey, 5000), grey) ||
+                       !same_colour(sleeve_mix(black, grey, -5), black)))
+    failed = "sleeve_mix took thousandths beyond 0 to 1000 as other than the nearest";
+  l = sleeve_add_linear(&b, 0);
+  if (!failed && (sleeve_along(l, INT32_MAX) != 100 * SLEEVE_UNIT ||
+                  sleeve_along(l, INT32_MIN) != -100 * SLEEVE_UNIT))
+    failed = "sleeve_along took a position beyond 100 lengths as other than the nearest";
+  sleeve_add_glow(&b, 0, 0, 1, 1, 10, 5, grey, 999);
+  if (!failed && c.layers[1].stops[0].colour.a != 255)
+    failed = "sleeve_add_glow took an alpha above 255 as other than 255";
+  if (!failed && sleeve_add_layer(&b, SLEEVE_LINEAR, 7)->repeating != 1)
+    failed = "sleeve_add_layer kept a repeating flag other than 0 or 1";
+  if (failed) snprintf(detail, sizeof detail, "%s", failed);
+  else snprintf(detail, sizeof detail, "sleeve_pick weighs %d weights and no more; sleeve_oklch, "
+                "sleeve_alpha, sleeve_mix, sleeve_along and sleeve_add_glow take values beyond "
+                "their domains as the nearest within, and chroma beyond 400 by its steps of 4; "
+                "sleeve_add_layer's repeating is 0 or 1", SLEEVE_MAX_PICK);
+  report("domains", !failed, detail);
+}
+
 /* ---- Style checks and fingerprints ---- */
 
 static sleeve_mood_def test_mood;
@@ -1971,7 +2032,7 @@ static const struct {
   {"extremes", check_extremes, 0}, {"default-style", check_default_style, 0},
   {"style-shares", check_style_shares, 0}, {"style-hooks", check_style_hooks, 0},
   {"builder", check_builder, 0}, {"containment", check_containment, 0},
-  {"parameters", check_parameters, 0},
+  {"parameters", check_parameters, 0}, {"domains", check_domains, 0},
   {"style-check", check_style_check, 0}, {"style-hash", check_style_hash, 0},
   {"given-palette", check_given_palette, 0},
   {"style-determinism", check_style_determinism, 1},

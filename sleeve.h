@@ -495,11 +495,17 @@ void sleeve_finish_lines(sleeve_builder *b, const void *params);
 /* ---- The builder -------------------------------------------------------------------------
    What compositions and finishers paint with. Whatever a hook asks, the builder keeps the
    description within SLEEVE_MAX_LAYERS and SLEEVE_MAX_STOPS, and generation drops any layer
-   sleeve_check would refuse, so every generated cover passes it. */
+   sleeve_check would refuse, so every generated cover passes it. Every call takes any value
+   of its arguments: those outside a call's domain below are brought within it, and positions
+   and sizes are kept as given, for generation to drop a layer they make invalid. */
+
+/* The most weights sleeve_pick weighs: those beyond are never picked. */
+#define SLEEVE_MAX_PICK 32768
 
 /* The generator: a number in [0, n), in [lo, hi], true `percent` times in 100, and an index
-   chosen in proportion to n weights. Each call takes the next draw, even when it has only one
-   answer (n of 1 or less, hi of lo or less, weights summing to 0). */
+   chosen in proportion to the first n weights, at most SLEEVE_MAX_PICK of them. Each call
+   takes the next draw, even when it has only one answer (n of 1 or less, hi of lo or less,
+   weights summing to 0, which pick the last). */
 int32_t sleeve_below(sleeve_builder *b, int32_t n);
 int32_t sleeve_range(sleeve_builder *b, int32_t lo, int32_t hi);
 int sleeve_chance(sleeve_builder *b, int32_t percent);
@@ -508,14 +514,16 @@ int sleeve_pick(sleeve_builder *b, const uint16_t *weights, int n);
 /* The layers the running hook can still add. */
 int sleeve_layers_left(const sleeve_builder *b);
 
-/* A new layer on top, cleared: no stops, centred shape. Beyond the limit it is a spare layer
-   that is never part of the cover, so a hook need not check. */
+/* A new layer on top, cleared: no stops, centred shape; `repeating` other than 0 is 1, and a
+   kind outside enum sleeve_kind makes a layer generation drops. Beyond the limit it is a
+   spare layer that is never part of the cover, so a hook need not check. */
 sleeve_layer *sleeve_add_layer(sleeve_builder *b, int kind, int repeating);
 sleeve_layer *sleeve_add_linear(sleeve_builder *b, int32_t angle);
 sleeve_layer *sleeve_add_radial(sleeve_builder *b, int32_t cx, int32_t cy);
 /* A hard-edged disc of radius r. */
 void sleeve_add_disc(sleeve_builder *b, int32_t cx, int32_t cy, int32_t r, sleeve_colour c);
-/* A soft glow of radius r with an (ex, ey) shape: `alpha` out to `inner`, then fading out. */
+/* A soft glow of radius r with an (ex, ey) shape: `alpha` (0 to 255) out to `inner`, then
+   fading out. */
 void sleeve_add_glow(sleeve_builder *b, int32_t cx, int32_t cy, int32_t ex, int32_t ey,
                      int32_t r, int32_t inner, sleeve_colour c, int32_t alpha);
 
@@ -523,14 +531,15 @@ void sleeve_add_glow(sleeve_builder *b, int32_t cx, int32_t cy, int32_t ex, int3
 void sleeve_add_stop(sleeve_layer *l, int32_t at, sleeve_colour c);
 /* A band of colour from `from` to `to`: two stops, so the band's edges are hard. */
 void sleeve_add_band(sleeve_layer *l, int32_t from, int32_t to, sleeve_colour c);
-/* A position along a linear layer's line, as thousandths of its length. */
+/* A position along a linear layer's line, as thousandths of its length, -100000 to 100000. */
 int32_t sleeve_along(const sleeve_layer *l, int32_t thousandths);
 
+/* c with an alpha of 0 to 255. */
 sleeve_colour sleeve_alpha(sleeve_colour c, int32_t alpha);
-/* a and b mixed, `thousandths` of the way to b, in sRGB; opaque. */
+/* a and b mixed, `thousandths` (0 to 1000) of the way to b, in sRGB; opaque. */
 sleeve_colour sleeve_mix(sleeve_colour a, sleeve_colour b, int32_t thousandths);
-/* OKLCH to opaque sRGB, lightness and chroma in thousandths, hue in degrees; chroma is lowered
-   in steps of 4 until the colour is in gamut. */
+/* OKLCH to opaque sRGB, lightness (0 to 1000) and chroma (0 up) in thousandths, hue in any
+   degrees; chroma is lowered in steps of 4 until the colour is in gamut. */
 sleeve_colour sleeve_oklch(int32_t lightness, int32_t chroma, int32_t hue);
 /* sRGB to OKLCH, in the same units, hue 0 to 359. */
 void sleeve_to_oklch(sleeve_colour c, int32_t *lightness, int32_t *chroma, int32_t *hue);
@@ -623,6 +632,10 @@ static int32_t sleeve__sin(int32_t d) { return sleeve__cos(90 - d % 360); }
 
 static int32_t sleeve__abs(int32_t v) { return v < 0 ? -v : v; }
 
+static int32_t sleeve__clamp(int32_t v, int32_t lo, int32_t hi) {
+  return v < lo ? lo : (v > hi ? hi : v);
+}
+
 /* n / d rounded to the nearest, halves up, for d > 0: q + r / d, with r / d in (-1, 1). */
 static int64_t sleeve__div_round(int64_t n, int64_t d) {
   int64_t q = n / d, r = n % d;
@@ -706,8 +719,9 @@ int sleeve_chance(sleeve_builder *b, int32_t percent) {
   return sleeve__chance(&b->rng, percent);
 }
 
+/* SLEEVE_MAX_PICK weights of 65535 sum within int32_t */
 int sleeve_pick(sleeve_builder *b, const uint16_t *weights, int n) {
-  return sleeve__pick(&b->rng, weights, n);
+  return sleeve__pick(&b->rng, weights, n < SLEEVE_MAX_PICK ? n : SLEEVE_MAX_PICK);
 }
 
 /* ---- Colour ------------------------------------------------------------------------------ */
@@ -729,7 +743,10 @@ static int64_t sleeve__cube(int64_t v) {
 
 sleeve_colour sleeve_oklch(int32_t lightness, int32_t chroma, int32_t hue) {
   sleeve_colour out;
-  int64_t l = sleeve__div_round((int64_t)lightness * 65536, 1000);
+  int64_t l = sleeve__div_round((int64_t)sleeve__clamp(lightness, 0, 1000) * 65536, 1000);
+  /* no chroma beyond 322 is in gamut, so the steps of 4 down from beyond 400 start at 397 to 400 */
+  if (chroma < 0) chroma = 0;
+  if (chroma > 400) chroma = 397 + (chroma - 397) % 4;
   for (;;) {
     int64_t a = sleeve__div_round((int64_t)chroma * sleeve__cos(hue), 1000);
     int64_t b = sleeve__div_round((int64_t)chroma * sleeve__sin(hue), 1000);
@@ -1050,7 +1067,7 @@ static void sleeve__add_glow(sleeve_builder *b, int32_t cx, int32_t cy, int32_t 
 }
 
 sleeve_layer *sleeve_add_layer(sleeve_builder *b, int kind, int repeating) {
-  return sleeve__add_layer(b, kind, repeating);
+  return sleeve__add_layer(b, kind, repeating != 0);
 }
 
 sleeve_layer *sleeve_add_linear(sleeve_builder *b, int32_t angle) {
@@ -1067,7 +1084,7 @@ void sleeve_add_disc(sleeve_builder *b, int32_t cx, int32_t cy, int32_t r, sleev
 
 void sleeve_add_glow(sleeve_builder *b, int32_t cx, int32_t cy, int32_t ex, int32_t ey,
                      int32_t r, int32_t inner, sleeve_colour c, int32_t alpha) {
-  sleeve__add_glow(b, cx, cy, ex, ey, r, inner, c, alpha);
+  sleeve__add_glow(b, cx, cy, ex, ey, r, inner, c, sleeve__clamp(alpha, 0, 255));
 }
 
 void sleeve_add_stop(sleeve_layer *l, int32_t at, sleeve_colour c) { sleeve__add_stop(l, at, c); }
@@ -1077,13 +1094,15 @@ void sleeve_add_band(sleeve_layer *l, int32_t from, int32_t to, sleeve_colour c)
 }
 
 int32_t sleeve_along(const sleeve_layer *l, int32_t thousandths) {
-  return sleeve__along(l, thousandths);
+  return sleeve__along(l, sleeve__clamp(thousandths, -100000, 100000));
 }
 
-sleeve_colour sleeve_alpha(sleeve_colour c, int32_t alpha) { return sleeve__alpha(c, alpha); }
+sleeve_colour sleeve_alpha(sleeve_colour c, int32_t alpha) {
+  return sleeve__alpha(c, sleeve__clamp(alpha, 0, 255));
+}
 
 sleeve_colour sleeve_mix(sleeve_colour a, sleeve_colour b, int32_t thousandths) {
-  return sleeve__mix_colour(a, b, thousandths);
+  return sleeve__mix_colour(a, b, sleeve__clamp(thousandths, 0, 1000));
 }
 
 /* A palette role, chosen in proportion to the weights. */
@@ -1092,10 +1111,6 @@ static int sleeve__pick_role(sleeve_builder *g, const uint16_t *weights) {
 }
 
 /* ---- Parameters -------------------------------------------------------------------------- */
-
-static int32_t sleeve__clamp(int32_t v, int32_t lo, int32_t hi) {
-  return v < lo ? lo : (v > hi ? hi : v);
-}
 
 #define SLEEVE__CHANCE(name, value) {name, 0, 100, value, -1}
 #define SLEEVE__COUNT(array) ((int)(sizeof array / sizeof array[0]))
@@ -1542,7 +1557,8 @@ void sleeve_compose_constellation(sleeve_builder *g, const void *params) {
   const int32_t *p = SLEEVE__VALUES(constellation, params, v);
   sleeve_rng *r = &g->rng;
   sleeve_layer *sky = sleeve__add_linear(g, 180);
-  int count = sleeve__range(r, p[SLEEVE_CONSTELLATION_STARS_MIN], p[SLEEVE_CONSTELLATION_STARS_MAX]), i;
+  int count = sleeve__range(r, p[SLEEVE_CONSTELLATION_STARS_MIN],
+                            p[SLEEVE_CONSTELLATION_STARS_MAX]), i;
   int placed = 0, tries = 0;
   int32_t xs[10], ys[10];
   sleeve__add_stop(sky, 0, g->palette[SLEEVE_DEEP]);

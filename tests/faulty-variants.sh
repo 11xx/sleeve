@@ -208,6 +208,21 @@ variant named-indices-swapped parameters \
 variant parameters-unclamped parameters \
   'for (i = 0; i < n; i++) v[i] = sleeve__clamp(given[i], list[i].lo, list[i].hi);' \
   'for (i = 0; i < n; i++) v[i] = given[i];'
+variant pick-unbounded domains \
+  'n < SLEEVE_MAX_PICK ? n : SLEEVE_MAX_PICK' 'n'
+variant oklch-lightness-unclamped domains \
+  '(int64_t)sleeve__clamp(lightness, 0, 1000) * 65536' '(int64_t)lightness * 65536'
+variant alpha-wrapped domains \
+  'return sleeve__alpha(c, sleeve__clamp(alpha, 0, 255));' 'return sleeve__alpha(c, alpha);'
+variant mix-unclamped domains \
+  'sleeve__mix_colour(a, b, sleeve__clamp(thousandths, 0, 1000))' 'sleeve__mix_colour(a, b, thousandths)'
+variant along-unclamped domains \
+  'sleeve__along(l, sleeve__clamp(thousandths, -100000, 100000))' 'sleeve__along(l, thousandths)'
+variant glow-alpha-wrapped domains \
+  'sleeve__add_glow(b, cx, cy, ex, ey, r, inner, c, sleeve__clamp(alpha, 0, 255));' \
+  'sleeve__add_glow(b, cx, cy, ex, ey, r, inner, c, alpha);'
+variant repeating-kept domains \
+  'return sleeve__add_layer(b, kind, repeating != 0);' 'return sleeve__add_layer(b, kind, repeating);'
 ub_variant png-width-multiplied-first extremes \
   '  int y, x, n, run = 0, previous = -1;
   if (width < 1 || height < 1 || width > 16384 || height > 16384) return 0;
@@ -217,5 +232,12 @@ ub_variant png-width-multiplied-first extremes \
 ub_variant angle-overflowing extremes \
   'return sleeve__cos(90 - d % 360);' \
   'return sleeve__cos(90 - d);'
+ub_variant pick-total-overflowing domains \
+  'n < SLEEVE_MAX_PICK ? n : SLEEVE_MAX_PICK' 'n'
+ub_variant oklch-chroma-unstepped domains \
+  '  if (chroma > 400) chroma = 397 + (chroma - 397) % 4;
+' ''
+ub_variant oklch-lightness-overflowing domains \
+  '(int64_t)sleeve__clamp(lightness, 0, 1000) * 65536' '(int64_t)lightness * 65536'
 
 exit "$failed"

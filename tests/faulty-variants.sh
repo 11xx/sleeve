@@ -6,7 +6,9 @@
 # SLEEVE_FAULTS=ub, and CC and CFLAGS building with it, only those faults run, each caught
 # by a runtime error in its check.
 #
-# usage: [SLEEVE_FAULTS=ub] tests/faulty-variants.sh BUILD_DIR
+# SLEEVE_FAULTS_ONLY, a list of variant names, runs only those.
+#
+# usage: [SLEEVE_FAULTS=ub] [SLEEVE_FAULTS_ONLY=NAMES] tests/faulty-variants.sh BUILD_DIR
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
 build=${1:?usage: faulty-variants.sh BUILD_DIR}
@@ -15,6 +17,16 @@ build=$(cd "$build" && pwd)
 cc=${CC:-cc}
 read -r -a cflags <<< "${CFLAGS:--std=c99 -O2 -Wall -Wextra}"
 mode=${SLEEVE_FAULTS:-plain}
+read -r -a only <<< "${SLEEVE_FAULTS_ONLY:-}"
+
+# whether the variant NAME runs in this mode, MODE being its own
+wanted() {
+  local name
+  [[ $mode == "$2" ]] || return 1
+  (( ${#only[@]} == 0 )) && return 0
+  for name in "${only[@]}"; do [[ $name == "$1" ]] && return 0; done
+  return 1
+}
 cd "$here"
 
 # replaces the one occurrence of each OLD with its NEW in FILE, or fails
@@ -44,7 +56,7 @@ build_check "$build/base"
 # variant
 variant() {
   local name=$1 check=$2 dir="$build/$1" output
-  [[ $mode == plain ]] || return 0
+  wanted "$name" plain || return 0
   shift 2
   mkdir -p "$dir"
   cp sleeve.h "$dir/sleeve.h"
@@ -70,7 +82,7 @@ variant() {
 # must report as a runtime error
 ub_variant() {
   local name=$1 check=$2 dir="$build/$1" output
-  [[ $mode == ub ]] || return 0
+  wanted "$name" ub || return 0
   shift 2
   mkdir -p "$dir"
   cp sleeve.h "$dir/sleeve.h"
@@ -188,6 +200,14 @@ variant periods-counted-in-floats extremes \
         return;
       }
       for (; first <= last; first += 1) sleeve__pieces(g, &k, first * g->period, acc);'
+variant named-indices-swapped parameters \
+  '  SLEEVE_HORIZON_SUN_MIN,             /* its radius */
+  SLEEVE_HORIZON_SUN_MAX,' \
+  '  SLEEVE_HORIZON_SUN_MAX,             /* its radius */
+  SLEEVE_HORIZON_SUN_MIN,'
+variant parameters-unclamped parameters \
+  'for (i = 0; i < n; i++) v[i] = sleeve__clamp(given[i], list[i].lo, list[i].hi);' \
+  'for (i = 0; i < n; i++) v[i] = given[i];'
 ub_variant png-width-multiplied-first extremes \
   '  int y, x, n, run = 0, previous = -1;
   if (width < 1 || height < 1 || width > 16384 || height > 16384) return 0;

@@ -7,8 +7,8 @@
      a finisher as a print on a mat.
    Include it after sleeve.h; it needs no C library. */
 
-static const sleeve_duotone_params riso_inks = {0x24418f, 0xf4ecdc};
-static const sleeve_lines_params riso_screen = {SLEEVE_DEEP, 34, 45, 130, 40};
+static const sleeve_params riso_inks = {{0x24418f, 0xf4ecdc}};
+static const sleeve_params riso_screen = {{SLEEVE_DEEP, 34, 45, 130, 40}};
 
 static const sleeve_style_part riso_palette_hooks[] = {
   {"duotone", sleeve_palette_duotone, &riso_inks, 0, 0, 0},
@@ -62,9 +62,9 @@ static void compose_arch(sleeve_builder *b, const void *params) {
   sleeve_add_band(l, floor_at, SLEEVE_UNIT, floor);
 }
 
-static const sleeve_orbs_params gallery_orbs = {50, 75, 40};
-static const sleeve_split_params gallery_split = {30, 150, 20, 80, 1200, 2200};
-static const sleeve_frame_params gallery_mat = {SLEEVE_PALE, 255, 750};
+static const sleeve_params gallery_orbs = {{50, 75, 40}};
+static const sleeve_params gallery_split = {{30, 150, 20, 80, 1200, 2200}};
+static const sleeve_params gallery_mat = {{SLEEVE_PALE, 255, 750}};
 
 static const sleeve_style_part gallery_compositions[] = {
   {"arch", compose_arch, 0, 5, 0, 1},

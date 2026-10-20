@@ -270,9 +270,9 @@ size_t sleeve_describe_styled(const sleeve_cover *cover, const sleeve_style *sty
                               size_t capacity);
 
 /* ---- Built-in pieces ---------------------------------------------------------------------
-   Every built-in composition, palette hook and finisher has a stable name and a parameter
-   struct made only of int32_t fields, each listed with its range and default, so a style can
-   be assembled from names and numbers alone. */
+   Every built-in composition, palette hook and finisher has a stable name and its parameters
+   as an array of int32_t, each listed with its range and default, so a style can be assembled
+   from names and numbers alone. */
 
 enum sleeve_piece_kind { SLEEVE_COMPOSE, SLEEVE_PALETTE, SLEEVE_FINISH };
 
@@ -282,12 +282,21 @@ typedef struct sleeve_param {
   int8_t at_most;         /* another parameter's index this one must not exceed, or -1 */
 } sleeve_param;
 
+/* The most parameters a built-in piece has. */
+#define SLEEVE_MAX_PARAMS 16
+
+/* A built-in piece's parameters: v[i] is the value of the piece's params[i], whose index the
+   piece's enum below names. Values beyond its param_count are unused. */
+typedef struct sleeve_params {
+  int32_t v[SLEEVE_MAX_PARAMS];
+} sleeve_params;
+
 typedef struct sleeve_piece {
   const char *name;
   sleeve_hook run;
-  const void *defaults;   /* the parameter struct of defaults */
+  const sleeve_params *defaults;
   const sleeve_param *params;
-  int param_count;        /* the struct's int32_t fields, in order */
+  int param_count;
   int layers;             /* finishers: the most layers it adds */
 } sleeve_piece;
 
@@ -300,140 +309,167 @@ int sleeve_find_param(const sleeve_piece *piece, const char *name);
 /* A built-in mood by name, or NULL. */
 const sleeve_mood_def *sleeve_find_mood(const char *name);
 
-/* Compositions. Chances are percentages; lengths are in side units; a _min and _max pair
-   draws from the range between them. Ranges and defaults are in sleeve_pieces. */
-typedef struct sleeve_horizon_params {
-  int32_t night;                    /* a deep sky over mid, the sun pale */
-  int32_t level;                    /* a level horizon; the rest tilt */
-  int32_t tilt;                     /* the steepest tilt, degrees */
-  int32_t horizon_min, horizon_max; /* the horizon's height, thousandths down the sky */
-  int32_t sun;                      /* a sun or moon */
-  int32_t setting;                  /* of those, sinking behind the ground */
-  int32_t sun_min, sun_max;         /* its radius */
-  int32_t band;                     /* an accent band along the horizon */
-  int32_t lines;                    /* lines in the ground */
-} sleeve_horizon_params;
+/* The built-in pieces' parameter indices. Compositions: chances are percentages; lengths are
+   in side units; a _MIN and _MAX pair draws from the range between them. Ranges and defaults
+   are in sleeve_pieces. */
+enum sleeve_horizon_param {
+  SLEEVE_HORIZON_NIGHT,               /* a deep sky over mid, the sun pale */
+  SLEEVE_HORIZON_LEVEL,               /* a level horizon; the rest tilt */
+  SLEEVE_HORIZON_TILT,                /* the steepest tilt, degrees */
+  SLEEVE_HORIZON_HORIZON_MIN,         /* the horizon's height, thousandths down the sky */
+  SLEEVE_HORIZON_HORIZON_MAX,
+  SLEEVE_HORIZON_SUN,                 /* a sun or moon */
+  SLEEVE_HORIZON_SETTING,             /* of those, sinking behind the ground */
+  SLEEVE_HORIZON_SUN_MIN,             /* its radius */
+  SLEEVE_HORIZON_SUN_MAX,
+  SLEEVE_HORIZON_BAND,                /* an accent band along the horizon */
+  SLEEVE_HORIZON_LINES,               /* lines in the ground */
+};
 
-typedef struct sleeve_glow_params {
-  int32_t dusk;                     /* a deep sky; the rest are dawn */
-  int32_t radius_min, radius_max;   /* the glow's reach */
-  int32_t alpha_min, alpha_max;     /* its opacity at the core, 0 to 255 */
-  int32_t sun;                      /* a sun or moon above it */
-} sleeve_glow_params;
+enum sleeve_glow_param {
+  SLEEVE_GLOW_DUSK,                   /* a deep sky; the rest are dawn */
+  SLEEVE_GLOW_RADIUS_MIN,             /* the glow's reach */
+  SLEEVE_GLOW_RADIUS_MAX,
+  SLEEVE_GLOW_ALPHA_MIN,              /* its opacity at the core, 0 to 255 */
+  SLEEVE_GLOW_ALPHA_MAX,
+  SLEEVE_GLOW_SUN,                    /* a sun or moon above it */
+};
 
-typedef struct sleeve_disc_params {
-  int32_t record;                   /* a record; the rest are rings */
-  int32_t centred;                  /* centred, on each axis */
-  int32_t label_min, label_max;     /* a record's label radius */
-  int32_t rings_min, rings_max;     /* rings */
-  int32_t halo;                     /* a thin ring around the rings */
-  int32_t wash;                     /* a faint pale wash over it all */
-} sleeve_disc_params;
+enum sleeve_disc_param {
+  SLEEVE_DISC_RECORD,                 /* a record; the rest are rings */
+  SLEEVE_DISC_CENTRED,                /* centred, on each axis */
+  SLEEVE_DISC_LABEL_MIN,              /* a record's label radius */
+  SLEEVE_DISC_LABEL_MAX,
+  SLEEVE_DISC_RINGS_MIN,              /* rings */
+  SLEEVE_DISC_RINGS_MAX,
+  SLEEVE_DISC_HALO,                   /* a thin ring around the rings */
+  SLEEVE_DISC_WASH,                   /* a faint pale wash over it all */
+};
 
-typedef struct sleeve_pair_params {
-  int32_t dark;                     /* a deep ground; the rest pale */
-  int32_t spread_min, spread_max;   /* each reel's distance from the middle */
-  int32_t hub_min, hub_max;         /* a reel's hub radius */
-  int32_t strip;                    /* a strip behind the reels */
-  int32_t spots;                    /* accent spots on the hubs */
-} sleeve_pair_params;
+enum sleeve_pair_param {
+  SLEEVE_PAIR_DARK,                   /* a deep ground; the rest pale */
+  SLEEVE_PAIR_SPREAD_MIN,             /* each reel's distance from the middle */
+  SLEEVE_PAIR_SPREAD_MAX,
+  SLEEVE_PAIR_HUB_MIN,                /* a reel's hub radius */
+  SLEEVE_PAIR_HUB_MAX,
+  SLEEVE_PAIR_STRIP,                  /* a strip behind the reels */
+  SLEEVE_PAIR_SPOTS,                  /* accent spots on the hubs */
+};
 
-typedef struct sleeve_stripes_params {
-  int32_t solid;                    /* solid stripes; the rest fine lines over a wash */
-  int32_t colours_min, colours_max; /* colours in a solid stripe's repeat */
-  int32_t wobble;                   /* the most degrees off the chosen angle */
-  int32_t disc;                     /* a disc over fine lines */
-} sleeve_stripes_params;
+enum sleeve_stripes_param {
+  SLEEVE_STRIPES_SOLID,               /* solid stripes; the rest fine lines over a wash */
+  SLEEVE_STRIPES_COLOURS_MIN,         /* colours in a solid stripe's repeat */
+  SLEEVE_STRIPES_COLOURS_MAX,
+  SLEEVE_STRIPES_WOBBLE,              /* the most degrees off the chosen angle */
+  SLEEVE_STRIPES_DISC,                /* a disc over fine lines */
+};
 
-typedef struct sleeve_bands_params {
-  int32_t sheen;                    /* a sheen over a diagonal wash; the rest bands */
-  int32_t bands_min, bands_max;     /* bands */
-  int32_t thin;                     /* one band thin */
-  int32_t tilt;                     /* bands off the square */
-  int32_t disc;                     /* a disc over the bands */
-} sleeve_bands_params;
+enum sleeve_bands_param {
+  SLEEVE_BANDS_SHEEN,                 /* a sheen over a diagonal wash; the rest bands */
+  SLEEVE_BANDS_BANDS_MIN,             /* bands */
+  SLEEVE_BANDS_BANDS_MAX,
+  SLEEVE_BANDS_THIN,                  /* one band thin */
+  SLEEVE_BANDS_TILT,                  /* bands off the square */
+  SLEEVE_BANDS_DISC,                  /* a disc over the bands */
+};
 
-typedef struct sleeve_split_params {
-  int32_t angle_min, angle_max;     /* the split's angle, degrees */
-  int32_t cross;                    /* a band across it */
-  int32_t disc;                     /* a disc */
-  int32_t disc_min, disc_max;       /* its radius */
-} sleeve_split_params;
+enum sleeve_split_param {
+  SLEEVE_SPLIT_ANGLE_MIN,             /* the split's angle, degrees */
+  SLEEVE_SPLIT_ANGLE_MAX,
+  SLEEVE_SPLIT_CROSS,                 /* a band across it */
+  SLEEVE_SPLIT_DISC,                  /* a disc */
+  SLEEVE_SPLIT_DISC_MIN,              /* its radius */
+  SLEEVE_SPLIT_DISC_MAX,
+};
 
-typedef struct sleeve_bars_params {
-  int32_t vertical;                 /* upright bars; the rest across */
-  int32_t bars_min, bars_max;       /* bars */
-  int32_t tilt;                     /* bars off the square */
-} sleeve_bars_params;
+enum sleeve_bars_param {
+  SLEEVE_BARS_VERTICAL,               /* upright bars; the rest across */
+  SLEEVE_BARS_BARS_MIN,               /* bars */
+  SLEEVE_BARS_BARS_MAX,
+  SLEEVE_BARS_TILT,                   /* bars off the square */
+};
 
-typedef struct sleeve_constellation_params {
-  int32_t stars_min, stars_max;     /* stars, one more without a moon */
-  int32_t moon;                     /* a moon */
-  int32_t star_min, star_max;       /* a star's radius */
-} sleeve_constellation_params;
+enum sleeve_constellation_param {
+  SLEEVE_CONSTELLATION_STARS_MIN,     /* stars, one more without a moon */
+  SLEEVE_CONSTELLATION_STARS_MAX,
+  SLEEVE_CONSTELLATION_MOON,          /* a moon */
+  SLEEVE_CONSTELLATION_STAR_MIN,      /* a star's radius */
+  SLEEVE_CONSTELLATION_STAR_MAX,
+};
 
-typedef struct sleeve_grooves_params {
-  int32_t lines;                    /* fine lines; the rest bands */
-  int32_t two_tone;                 /* of bands, a ground and one colour; the rest three tones */
-  int32_t disc;                     /* a disc */
-} sleeve_grooves_params;
+enum sleeve_grooves_param {
+  SLEEVE_GROOVES_LINES,               /* fine lines; the rest bands */
+  SLEEVE_GROOVES_TWO_TONE,            /* of bands, a ground and one colour; the rest three tones */
+  SLEEVE_GROOVES_DISC,                /* a disc */
+};
 
-typedef struct sleeve_orbs_params {
-  int32_t wash;                     /* a wash under the orbs */
-  int32_t edge;                     /* an orb rising from an edge, each */
-  int32_t oval;                     /* an orb drawn as an ellipse, each */
-} sleeve_orbs_params;
+enum sleeve_orbs_param {
+  SLEEVE_ORBS_WASH,                   /* a wash under the orbs */
+  SLEEVE_ORBS_EDGE,                   /* an orb rising from an edge, each */
+  SLEEVE_ORBS_OVAL,                   /* an orb drawn as an ellipse, each */
+};
 
-typedef struct sleeve_checks_params {
-  int32_t tile_min, tile_max;       /* a square's side */
-  int32_t dark;                     /* deep squares; the rest mid */
-  int32_t disc;                     /* a disc over the squares; the rest a band */
-} sleeve_checks_params;
+enum sleeve_checks_param {
+  SLEEVE_CHECKS_TILE_MIN,             /* a square's side */
+  SLEEVE_CHECKS_TILE_MAX,
+  SLEEVE_CHECKS_DARK,                 /* deep squares; the rest mid */
+  SLEEVE_CHECKS_DISC,                 /* a disc over the squares; the rest a band */
+};
 
 /* Palette hooks. Colours are 0xRRGGBB; amounts are thousandths. */
-typedef struct sleeve_tint_params {
-  int32_t colour;                   /* the colour mixed in, in sRGB */
-  int32_t amount;
-} sleeve_tint_params;
+enum sleeve_tint_param {
+  SLEEVE_TINT_COLOUR,                 /* the colour mixed in, in sRGB */
+  SLEEVE_TINT_AMOUNT,
+};
 
-typedef struct sleeve_chroma_params {
-  int32_t scale;                    /* each colour's OKLCH chroma, in thousandths of itself */
-} sleeve_chroma_params;
+enum sleeve_chroma_param {
+  SLEEVE_CHROMA_SCALE,                /* each colour's OKLCH chroma, in thousandths of itself */
+};
 
-typedef struct sleeve_monochrome_params {
-  int32_t hue;                      /* every colour's hue, or -1 for the palette's own key hue */
-} sleeve_monochrome_params;
+enum sleeve_monochrome_param {
+  SLEEVE_MONOCHROME_HUE,              /* every colour's hue, or -1 for the palette's own key hue */
+};
 
-typedef struct sleeve_lightness_params {
-  int32_t lo, hi;                   /* OKLCH lightness 0 to 1000 maps onto lo to hi */
-} sleeve_lightness_params;
+enum sleeve_lightness_param {
+  SLEEVE_LIGHTNESS_LO,                /* OKLCH lightness 0 to 1000 maps onto lo to hi */
+  SLEEVE_LIGHTNESS_HI,
+};
 
-typedef struct sleeve_duotone_params {
-  int32_t dark, light;              /* the inks the darkest and lightest colours become */
-} sleeve_duotone_params;
+enum sleeve_duotone_param {
+  SLEEVE_DUOTONE_DARK,                /* the inks the darkest and lightest colours become */
+  SLEEVE_DUOTONE_LIGHT,
+};
 
 /* Finishers. Roles are enum sleeve_role. */
-typedef struct sleeve_vignette_params {
-  int32_t role, alpha;              /* the colour the edges darken toward, and its opacity */
-  int32_t inner, outer;             /* where it starts and is full, from the centre */
-} sleeve_vignette_params;
+enum sleeve_vignette_param {
+  SLEEVE_VIGNETTE_ROLE,               /* the colour the edges darken toward, and its opacity */
+  SLEEVE_VIGNETTE_ALPHA,
+  SLEEVE_VIGNETTE_INNER,              /* where it starts and is full, from the centre */
+  SLEEVE_VIGNETTE_OUTER,
+};
 
-typedef struct sleeve_wash_params {
-  int32_t role, alpha;              /* a flat colour over the whole cover */
-} sleeve_wash_params;
+enum sleeve_wash_param {
+  SLEEVE_WASH_ROLE,                   /* a flat colour over the whole cover */
+  SLEEVE_WASH_ALPHA,
+};
 
-typedef struct sleeve_frame_params {
-  int32_t role, alpha;
-  int32_t width;                    /* the border's width */
-} sleeve_frame_params;
+enum sleeve_frame_param {
+  SLEEVE_FRAME_ROLE,
+  SLEEVE_FRAME_ALPHA,
+  SLEEVE_FRAME_WIDTH,                 /* the border's width */
+};
 
-typedef struct sleeve_lines_params {
-  int32_t role, alpha;
-  int32_t angle;                    /* degrees */
-  int32_t pitch, width;             /* line spacing and width */
-} sleeve_lines_params;
+enum sleeve_lines_param {
+  SLEEVE_LINES_ROLE,
+  SLEEVE_LINES_ALPHA,
+  SLEEVE_LINES_ANGLE,                 /* degrees */
+  SLEEVE_LINES_PITCH,                 /* line spacing and width */
+  SLEEVE_LINES_WIDTH,
+};
 
-/* The built-in pieces' functions, for a style or a hook to call directly. */
+/* The built-in pieces' functions, for a style or a hook to call directly. params is NULL for
+   the defaults or points to a sleeve_params; a value outside its range is taken as the
+   nearest within it, and then as at most the parameter its at_most names. */
 void sleeve_compose_horizon(sleeve_builder *b, const void *params);
 void sleeve_compose_glow(sleeve_builder *b, const void *params);
 void sleeve_compose_disc(sleeve_builder *b, const void *params);
@@ -1055,623 +1091,11 @@ static int sleeve__pick_role(sleeve_builder *g, const uint16_t *weights) {
   return sleeve__pick(&g->rng, weights, 5);
 }
 
-/* ---- Compositions ------------------------------------------------------------------------ */
-
-static const sleeve_horizon_params sleeve__horizon_defaults = {40, 60, 8, 420, 650, 85, 30, 700,
-                                                                1500, 55, 35};
-static const sleeve_glow_params sleeve__glow_defaults = {60, 4500, 6500, 170, 220, 55};
-static const sleeve_disc_params sleeve__disc_defaults = {35, 60, 900, 1400, 2, 3, 40, 40};
-static const sleeve_pair_params sleeve__pair_defaults = {60, 1800, 2300, 800, 1300, 50, 60};
-static const sleeve_stripes_params sleeve__stripes_defaults = {65, 2, 4, 4, 40};
-static const sleeve_bands_params sleeve__bands_defaults = {25, 3, 4, 40, 30, 30};
-static const sleeve_split_params sleeve__split_defaults = {20, 160, 45, 55, 1000, 2200};
-static const sleeve_bars_params sleeve__bars_defaults = {70, 2, 3, 25};
-static const sleeve_constellation_params sleeve__constellation_defaults = {4, 9, 35, 200, 450};
-static const sleeve_grooves_params sleeve__grooves_defaults = {25, 50, 20};
-static const sleeve_orbs_params sleeve__orbs_defaults = {50, 50, 40};
-static const sleeve_checks_params sleeve__checks_defaults = {400, 1000, 50, 60};
+/* ---- Parameters -------------------------------------------------------------------------- */
 
 static int32_t sleeve__clamp(int32_t v, int32_t lo, int32_t hi) {
   return v < lo ? lo : (v > hi ? hi : v);
 }
-
-/* A sky over ground at a horizon, a sun or moon in the sky, and sometimes lines in the ground.
-   The ground is its own layer over the sun, so a setting sun sinks behind it. */
-void sleeve_compose_horizon(sleeve_builder *g, const void *params) {
-  const sleeve_horizon_params *p = params ? (const sleeve_horizon_params *)params
-                                          : &sleeve__horizon_defaults;
-  sleeve_rng *r = &g->rng;
-  int night = sleeve__chance(r, p->night);
-  int32_t tilt = sleeve__chance(r, p->level) ? 0 : sleeve__range(r, -p->tilt, p->tilt);
-  int32_t horizon = sleeve__range(r, p->horizon_min, p->horizon_max), band = 0;
-  sleeve_layer *sky = sleeve__add_linear(g, 180 + tilt), *land;
-  int32_t h = sleeve__along(sky, horizon), end = sleeve__along(sky, 1000);
-  sleeve_colour top = g->palette[night ? SLEEVE_DEEP : SLEEVE_MID];
-  sleeve_colour low = g->palette[night ? SLEEVE_MID : SLEEVE_PALE];
-  sleeve_colour ground = g->palette[SLEEVE_DEEP], edge = g->palette[SLEEVE_ACCENT2];
-  sleeve__add_stop(sky, 0, top);
-  sleeve__add_stop(sky, h, low);
-  if (sleeve__chance(r, p->sun)) {
-    int setting = sleeve__chance(r, p->setting);
-    int32_t sun_r = sleeve__range(r, p->sun_min, p->sun_max), sun_x = sleeve__range(r, 2000, 8000);
-    int32_t sun_y = setting ? horizon * 10 : sleeve__range(r, 1500, horizon * 10 - sun_r - 600);
-    if (sun_y < sun_r + 500) sun_y = sun_r + 500;
-    sleeve__add_disc(g, sun_x, sun_y, sun_r, g->palette[night ? SLEEVE_PALE : SLEEVE_ACCENT]);
-  }
-  land = sleeve__add_linear(g, 180 + tilt);
-  if (sleeve__chance(r, p->band)) band = sleeve__range(r, 120, 450);
-  sleeve__add_stop(land, h, sleeve__alpha(band ? edge : ground, 0));
-  if (band) sleeve__add_band(land, h, h + band, edge);
-  sleeve__add_band(land, h + band, end, ground);
-  if (sleeve__chance(r, p->lines)) {
-    int32_t gap = sleeve__range(r, 400, 900), w = sleeve__range(r, 60, 160), at = h + band + gap;
-    sleeve_colour c = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 70, 140));
-    if (at + w < end) {
-      sleeve_layer *lines = sleeve__add_linear(g, 180 + tilt);
-      while (lines->stop_count + 4 <= SLEEVE_MAX_STOPS && at + w < end) {
-        sleeve__add_stop(lines, at, sleeve__alpha(c, 0));
-        sleeve__add_band(lines, at, at + w, c);
-        sleeve__add_stop(lines, at + w, sleeve__alpha(c, 0));
-        at += w + gap;
-        gap = gap * 3 / 4 + 120;
-      }
-    }
-  }
-}
-
-/* A sky wash with a glow rising from the bottom edge, at dusk or at dawn, and sometimes a sun
-   or moon above it. */
-void sleeve_compose_glow(sleeve_builder *g, const void *params) {
-  const sleeve_glow_params *p = params ? (const sleeve_glow_params *)params
-                                       : &sleeve__glow_defaults;
-  sleeve_rng *r = &g->rng;
-  sleeve_layer *wash = sleeve__add_linear(g, 180);
-  int dusk = sleeve__chance(r, p->dusk);
-  int32_t gx = sleeve__range(r, 3500, 6500);
-  int32_t radius = sleeve__range(r, p->radius_min, p->radius_max);
-  sleeve__add_stop(wash, 0, g->palette[dusk ? SLEEVE_DEEP : SLEEVE_MID]);
-  if (dusk) sleeve__add_stop(wash, sleeve__range(r, 4500, 6500), g->palette[SLEEVE_MID]);
-  sleeve__add_stop(wash, SLEEVE_UNIT, g->palette[dusk ? SLEEVE_ACCENT2 : SLEEVE_PALE]);
-  {
-    int32_t gy = SLEEVE_UNIT + sleeve__range(r, 0, 800), ey = sleeve__range(r, 5500, 8000);
-    int32_t alpha = sleeve__range(r, p->alpha_min, p->alpha_max);
-    sleeve__add_glow(g, gx, gy, SLEEVE_UNIT, ey, radius, radius / 3, g->palette[SLEEVE_PALE],
-                     alpha);
-  }
-  if (sleeve__chance(r, p->sun)) {
-    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 1800, 4000);
-    int32_t size = sleeve__range(r, 700, 1300);
-    sleeve__add_disc(g, x, y, size, g->palette[SLEEVE_ACCENT]);
-  }
-}
-
-/* Concentric rings on a ground, or a record with grooves and a label, under a faint wash. */
-void sleeve_compose_disc(sleeve_builder *g, const void *params) {
-  const sleeve_disc_params *p = params ? (const sleeve_disc_params *)params
-                                       : &sleeve__disc_defaults;
-  sleeve_rng *r = &g->rng;
-  static const uint16_t grounds[5] = {4, 2, 4, 0, 1};
-  int ground = sleeve__pick_role(g, grounds);
-  int32_t cx = sleeve__chance(r, p->centred) ? 5000 : sleeve__range(r, 3500, 6500);
-  int32_t cy = sleeve__chance(r, p->centred) ? 5000 : sleeve__range(r, 3500, 6500);
-  sleeve_colour bg = g->palette[ground];
-  g->cover->base = bg;
-  if (sleeve__chance(r, p->record)) {
-    /* the vinyl is the base, so the grooves on it and the ground around it meet in one edge */
-    int32_t outer = sleeve__range(r, 3300, 4300);
-    int32_t label = sleeve__range(r, p->label_min, p->label_max);
-    int32_t pitch = sleeve__range(r, 90, 200);
-    sleeve_colour line = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 25, 45));
-    sleeve_layer *grooves = sleeve__add_radial(g, cx, cy), *around;
-    g->cover->base = g->palette[ground == SLEEVE_DEEP ? SLEEVE_MID : SLEEVE_DEEP];
-    grooves->repeating = 1;
-    sleeve__add_band(grooves, 0, pitch / 2, sleeve__alpha(line, 0));
-    sleeve__add_band(grooves, pitch / 2, pitch, line);
-    around = sleeve__add_radial(g, cx, cy);
-    sleeve__add_stop(around, outer, sleeve__alpha(bg, 0));
-    sleeve__add_stop(around, outer, bg);
-    sleeve__add_disc(g, cx, cy, label,
-                     g->palette[sleeve__chance(r, 50) ? SLEEVE_ACCENT : SLEEVE_ACCENT2]);
-    sleeve__add_disc(g, cx, cy, sleeve__range(r, 120, 220), bg);
-  } else {
-    sleeve_layer *rings = sleeve__add_radial(g, cx, cy);
-    static const int order[4] = {SLEEVE_ACCENT, SLEEVE_PALE, SLEEVE_MID, SLEEVE_DEEP};
-    int count = sleeve__clamp(sleeve__range(r, p->rings_min, p->rings_max), 1, 3), i;
-    int first = sleeve__below(r, 4);
-    int32_t at = 0;
-    for (i = 0; i < count; i++) {
-      int role = order[(first + i) % 4];
-      int32_t w = i == 0 ? sleeve__range(r, 1000, 2400) : sleeve__range(r, 150, 900);
-      if (role == ground) role = SLEEVE_ACCENT2;
-      sleeve__add_band(rings, at, at + w, g->palette[role]);
-      at += w;
-    }
-    sleeve__add_stop(rings, at, sleeve__alpha(rings->stops[rings->stop_count - 1].colour, 0));
-    if (sleeve__chance(r, p->halo)) {
-      sleeve_layer *halo = sleeve__add_radial(g, cx, cy);
-      int32_t gap = sleeve__range(r, 300, 800), w = sleeve__range(r, 120, 300);
-      sleeve_colour c = sleeve__alpha(rings->stops[0].colour, sleeve__range(r, 80, 140));
-      sleeve__add_stop(halo, at + gap, sleeve__alpha(c, 0));
-      sleeve__add_band(halo, at + gap, at + gap + w, c);
-      sleeve__add_stop(halo, at + gap + w, sleeve__alpha(c, 0));
-    }
-  }
-  if (sleeve__chance(r, p->wash)) {
-    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 135, 200));
-    sleeve__add_stop(wash, 0, sleeve__alpha(g->palette[SLEEVE_PALE], 0));
-    sleeve__add_stop(wash, sleeve__along(wash, 1000), sleeve__alpha(g->palette[SLEEVE_PALE], 60));
-  }
-}
-
-/* Two matching ringed discs side by side, as reels. */
-void sleeve_compose_pair(sleeve_builder *g, const void *params) {
-  const sleeve_pair_params *p = params ? (const sleeve_pair_params *)params
-                                       : &sleeve__pair_defaults;
-  sleeve_rng *r = &g->rng;
-  int32_t spread = sleeve__range(r, p->spread_min, p->spread_max), y = sleeve__range(r, 4200, 5800);
-  int32_t hub = sleeve__range(r, p->hub_min, p->hub_max), rim = sleeve__range(r, 250, 450);
-  int32_t gap = sleeve__range(r, 200, 400);
-  int dark = sleeve__chance(r, p->dark), side;
-  sleeve_colour ground = dark ? g->palette[SLEEVE_DEEP] : g->palette[SLEEVE_PALE];
-  sleeve_colour wheel = dark ? g->palette[SLEEVE_PALE] : g->palette[SLEEVE_DEEP];
-  g->cover->base = ground;
-  if (sleeve__chance(r, p->strip)) {
-    sleeve_layer *strip = sleeve__add_linear(g, 180);
-    int32_t half = sleeve__range(r, 1600, 2400);
-    sleeve_colour c = g->palette[SLEEVE_MID];
-    sleeve__add_stop(strip, y - half, sleeve__alpha(c, 0));
-    sleeve__add_band(strip, y - half, y + half, c);
-    sleeve__add_stop(strip, y + half, sleeve__alpha(c, 0));
-  }
-  for (side = -1; side <= 1; side += 2) {
-    sleeve_layer *reel = sleeve__add_radial(g, 5000 + side * spread, y);
-    sleeve__add_band(reel, 0, hub, wheel);
-    sleeve__add_band(reel, hub, hub + gap, ground);
-    sleeve__add_band(reel, hub + gap, hub + gap + rim, wheel);
-    sleeve__add_stop(reel, hub + gap + rim, sleeve__alpha(wheel, 0));
-  }
-  if (sleeve__chance(r, p->spots)) {
-    int32_t spot = sleeve__range(r, 180, 320);
-    sleeve__add_disc(g, 5000 - spread, y, spot, g->palette[SLEEVE_ACCENT]);
-    sleeve__add_disc(g, 5000 + spread, y, spot, g->palette[SLEEVE_ACCENT]);
-  }
-}
-
-/* Repeating stripes at an angle, solid or as fine lines over a wash. */
-void sleeve_compose_stripes(sleeve_builder *g, const void *params) {
-  const sleeve_stripes_params *p = params ? (const sleeve_stripes_params *)params
-                                          : &sleeve__stripes_defaults;
-  sleeve_rng *r = &g->rng;
-  static const int16_t angles[10] = {0, 20, 45, 65, 90, 105, 115, 135, 160, 120};
-  int32_t angle = angles[sleeve__below(r, 10)], wobble = sleeve__range(r, -p->wobble, p->wobble);
-  angle += wobble;
-  if (sleeve__chance(r, p->solid)) {
-    sleeve_layer *s = sleeve__add_linear(g, angle);
-    static const int order[5] = {SLEEVE_DEEP, SLEEVE_MID, SLEEVE_PALE, SLEEVE_ACCENT,
-                                 SLEEVE_ACCENT2};
-    int count = sleeve__clamp(sleeve__range(r, p->colours_min, p->colours_max), 1, 4), i;
-    int first = sleeve__below(r, 3);
-    int32_t at = 0;
-    s->repeating = 1;
-    for (i = 0; i < count; i++) {
-      int role = order[(first + i * 2) % 5];
-      int32_t w = i == 0 ? sleeve__range(r, 400, 1200)
-                         : (role >= SLEEVE_ACCENT ? sleeve__range(r, 100, 300)
-                                                  : sleeve__range(r, 120, 700));
-      sleeve__add_band(s, at, at + w, g->palette[role]);
-      at += w;
-    }
-    g->cover->base = s->stops[0].colour;
-  } else {
-    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 150, 210));
-    sleeve_layer *lines;
-    int dark = sleeve__chance(r, 50);
-    int32_t pitch = sleeve__range(r, 350, 800), w = sleeve__range(r, 40, 120);
-    sleeve_colour ink = dark ? g->palette[SLEEVE_PALE] : g->palette[SLEEVE_DEEP];
-    sleeve__add_stop(wash, 0, dark ? g->palette[SLEEVE_DEEP] : g->palette[SLEEVE_MID]);
-    sleeve__add_stop(wash, sleeve__along(wash, 1000),
-                     dark ? g->palette[SLEEVE_MID] : g->palette[SLEEVE_PALE]);
-    lines = sleeve__add_linear(g, angle);
-    lines->repeating = 1;
-    ink = sleeve__alpha(ink, sleeve__range(r, 60, 120));
-    sleeve__add_band(lines, 0, pitch - w, sleeve__alpha(ink, 0));
-    sleeve__add_band(lines, pitch - w, pitch, ink);
-    if (sleeve__chance(r, p->disc)) {
-      int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
-      int32_t size = sleeve__range(r, 1000, 1800);
-      sleeve__add_disc(g, x, y, size, g->palette[SLEEVE_ACCENT]);
-    }
-  }
-}
-
-/* Hard bands across the cover in proportion, one of them sometimes a thin accent, and
-   sometimes a disc; or a sheen of translucent bands over a diagonal wash. */
-void sleeve_compose_bands(sleeve_builder *g, const void *params) {
-  const sleeve_bands_params *p = params ? (const sleeve_bands_params *)params
-                                        : &sleeve__bands_defaults;
-  sleeve_rng *r = &g->rng;
-  static const int16_t angles[6] = {180, 90, 180, 0, 270, 180};
-  static const int order[5] = {SLEEVE_PALE, SLEEVE_MID, SLEEVE_ACCENT, SLEEVE_DEEP,
-                               SLEEVE_ACCENT2};
-  int32_t angle = angles[sleeve__below(r, 6)], weights[4], total = 0, at = 0, length;
-  int count = sleeve__clamp(sleeve__range(r, p->bands_min, p->bands_max), 2, 4);
-  int thin = sleeve__chance(r, p->thin) ? sleeve__below(r, count) : -1;
-  int first = sleeve__below(r, 5), i;
-  sleeve_layer *b;
-  if (sleeve__chance(r, p->sheen)) {
-    /* a sheen: a diagonal wash crossed by two translucent pale bands */
-    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 120, 160)), *sheen;
-    int32_t a1 = sleeve__range(r, 3500, 4500), w1 = sleeve__range(r, 200, 400);
-    int32_t a2 = a1 + w1 + sleeve__range(r, 800, 1500), w2 = sleeve__range(r, 150, 300);
-    sleeve_colour c1 = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 110, 150));
-    sleeve_colour c2 = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 80, 110));
-    sleeve__add_stop(wash, 0, g->palette[SLEEVE_PALE]);
-    sleeve__add_stop(wash, sleeve__along(wash, 500), g->palette[SLEEVE_MID]);
-    sleeve__add_stop(wash, sleeve__along(wash, 1000), g->palette[SLEEVE_DEEP]);
-    sheen = sleeve__add_linear(g, sleeve__chance(r, 50) ? 0 : sleeve__range(r, -10, 10));
-    sleeve__add_stop(sheen, a1, sleeve__alpha(c1, 0));
-    sleeve__add_band(sheen, a1, a1 + w1, c1);
-    sleeve__add_stop(sheen, a1 + w1, sleeve__alpha(c1, 0));
-    sleeve__add_stop(sheen, a2, sleeve__alpha(c2, 0));
-    sleeve__add_band(sheen, a2, a2 + w2, c2);
-    sleeve__add_stop(sheen, a2 + w2, sleeve__alpha(c2, 0));
-    return;
-  }
-  if (sleeve__chance(r, p->tilt)) angle += sleeve__range(r, -12, 12);
-  b = sleeve__add_linear(g, angle);
-  length = sleeve__along(b, 1000);
-  for (i = 0; i < count; i++) {
-    weights[i] = i == thin ? sleeve__range(r, 3, 6) : sleeve__range(r, 14, 36);
-    total += weights[i];
-  }
-  for (i = 0; i < count; i++) {
-    int32_t next = i == count - 1 ? length : at + length * weights[i] / total;
-    sleeve__add_band(b, at, next, g->palette[order[(first + i) % 5]]);
-    at = next;
-  }
-  g->cover->base = b->stops[0].colour;
-  if (sleeve__chance(r, p->disc)) {
-    int32_t dr = sleeve__range(r, 900, 1600);
-    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
-    int role = sleeve__chance(r, 50) ? SLEEVE_PALE : SLEEVE_ACCENT;
-    sleeve__add_disc(g, x, y, dr, g->palette[role]);
-  }
-}
-
-/* A hard diagonal split, sometimes crossed by a band, sometimes with a disc. */
-void sleeve_compose_split(sleeve_builder *g, const void *params) {
-  const sleeve_split_params *p = params ? (const sleeve_split_params *)params
-                                        : &sleeve__split_defaults;
-  sleeve_rng *r = &g->rng;
-  int32_t angle = sleeve__range(r, p->angle_min, p->angle_max), flip = sleeve__chance(r, 50);
-  sleeve_layer *s = sleeve__add_linear(g, flip ? angle + 180 : angle);
-  int32_t at = sleeve__along(s, sleeve__range(r, 380, 620));
-  int first = sleeve__chance(r, 50) ? SLEEVE_DEEP : SLEEVE_MID;
-  int second = first == SLEEVE_DEEP ? (sleeve__chance(r, 50) ? SLEEVE_PALE : SLEEVE_ACCENT)
-                                    : SLEEVE_PALE;
-  sleeve__add_band(s, 0, at, g->palette[first]);
-  sleeve__add_band(s, at, sleeve__along(s, 1000), g->palette[second]);
-  if (sleeve__chance(r, p->cross)) {
-    sleeve_layer *cross = sleeve__add_linear(g, s->angle + sleeve__range(r, 60, 120));
-    int32_t c = sleeve__along(cross, sleeve__range(r, 350, 650)), w = sleeve__range(r, 500, 1500);
-    sleeve_colour band = g->palette[SLEEVE_ACCENT2];
-    sleeve__add_stop(cross, c, sleeve__alpha(band, 0));
-    sleeve__add_band(cross, c, c + w, band);
-    sleeve__add_stop(cross, c + w, sleeve__alpha(band, 0));
-  }
-  if (sleeve__chance(r, p->disc)) {
-    int32_t dr = sleeve__range(r, p->disc_min, p->disc_max);
-    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
-    sleeve__add_disc(g, x, y, dr,
-                     g->palette[second == SLEEVE_ACCENT ? SLEEVE_PALE : SLEEVE_ACCENT]);
-  }
-}
-
-/* Thin bright bars on a dark ground that lightens at the bottom, two bars to a layer. */
-void sleeve_compose_bars(sleeve_builder *g, const void *params) {
-  const sleeve_bars_params *p = params ? (const sleeve_bars_params *)params
-                                       : &sleeve__bars_defaults;
-  static const int roles[3] = {SLEEVE_ACCENT, SLEEVE_ACCENT2, SLEEVE_PALE};
-  sleeve_rng *r = &g->rng;
-  sleeve_layer *ground = sleeve__add_linear(g, 180);
-  int32_t angle = sleeve__chance(r, p->vertical) ? 90 : 180;
-  sleeve_layer *bars = 0;
-  int count = sleeve__range(r, p->bars_min, p->bars_max), i;
-  int32_t at = sleeve__range(r, 1500, 3500), length = sleeve__line_length(angle);
-  sleeve__add_stop(ground, 0, g->palette[SLEEVE_DEEP]);
-  sleeve__add_stop(ground, sleeve__range(r, 6000, 8000), g->palette[SLEEVE_DEEP]);
-  sleeve__add_stop(ground, SLEEVE_UNIT, g->palette[SLEEVE_MID]);
-  if (sleeve__chance(r, p->tilt)) angle += sleeve__range(r, -15, 15);
-  for (i = 0; i < count && at < length - 400; i++) {
-    int32_t w = sleeve__range(r, 150, 350);
-    sleeve_colour c = g->palette[roles[i % 3]];
-    if (i % 2 == 0) bars = sleeve__add_linear(g, angle);
-    sleeve__add_stop(bars, at, sleeve__alpha(c, 0));
-    sleeve__add_band(bars, at, at + w, c);
-    sleeve__add_stop(bars, at + w, sleeve__alpha(c, 0));
-    at += w + sleeve__range(r, 600, 2400);
-  }
-}
-
-/* Small bright dots on a night wash, sometimes with a larger moon. */
-void sleeve_compose_constellation(sleeve_builder *g, const void *params) {
-  const sleeve_constellation_params *p = params ? (const sleeve_constellation_params *)params
-                                                : &sleeve__constellation_defaults;
-  sleeve_rng *r = &g->rng;
-  sleeve_layer *sky = sleeve__add_linear(g, 180);
-  int count = sleeve__clamp(sleeve__range(r, p->stars_min, p->stars_max), 1, 9), i;
-  int placed = 0, tries = 0;
-  int32_t xs[10], ys[10];
-  sleeve__add_stop(sky, 0, g->palette[SLEEVE_DEEP]);
-  sleeve__add_stop(sky, SLEEVE_UNIT,
-                   sleeve__mix_colour(g->palette[SLEEVE_DEEP], g->palette[SLEEVE_MID], 400));
-  if (sleeve__chance(r, p->moon)) {
-    int32_t mr = sleeve__range(r, 900, 1400);
-    xs[placed] = sleeve__range(r, 2500, 7500);
-    ys[placed] = sleeve__range(r, 2000, 5000);
-    sleeve__add_disc(g, xs[placed], ys[placed], mr, g->palette[SLEEVE_PALE]);
-    placed++;
-  }
-  while (placed < count + 1 && tries < 40 && g->cover->layer_count < g->limit) {
-    int32_t x = sleeve__range(r, 1200, 8800), y = sleeve__range(r, 1200, 8800);
-    int ok = 1;
-    tries++;
-    for (i = 0; i < placed; i++) {
-      int64_t dx = x - xs[i], dy = y - ys[i];
-      if (dx * dx + dy * dy < (int64_t)1800 * 1800) ok = 0;
-    }
-    if (!ok) continue;
-    {
-      int32_t dr = sleeve__range(r, p->star_min, p->star_max);
-      int role = sleeve__chance(r, 50) ? SLEEVE_ACCENT : (sleeve__chance(r, 50) ? SLEEVE_ACCENT2
-                                                                            : SLEEVE_PALE);
-      xs[placed] = x;
-      ys[placed] = y;
-      placed++;
-      sleeve__add_disc(g, x, y, dr, g->palette[role]);
-    }
-  }
-}
-
-/* Repeating rings from a centre off to one side, as ripples or contours. */
-void sleeve_compose_grooves(sleeve_builder *g, const void *params) {
-  const sleeve_grooves_params *p = params ? (const sleeve_grooves_params *)params
-                                          : &sleeve__grooves_defaults;
-  sleeve_rng *r = &g->rng;
-  int32_t cx = sleeve__chance(r, 50) ? sleeve__range(r, -2000, 12000)
-                                     : (sleeve__chance(r, 50) ? 0 : SLEEVE_UNIT);
-  int32_t cy = sleeve__range(r, -2000, 12000);
-  sleeve_layer *rings = sleeve__add_radial(g, cx, cy);
-  int lines = sleeve__chance(r, p->lines);
-  rings->repeating = 1;
-  if (lines) {
-    int dark = sleeve__chance(r, 50);
-    int32_t pitch = sleeve__range(r, 350, 700), w = sleeve__range(r, 40, 90);
-    sleeve_colour ink = dark ? g->palette[SLEEVE_PALE] : g->palette[SLEEVE_DEEP];
-    g->cover->base = dark ? g->palette[SLEEVE_DEEP] : g->palette[SLEEVE_PALE];
-    ink = sleeve__alpha(ink, sleeve__range(r, 70, 130));
-    sleeve__add_band(rings, 0, pitch - w, sleeve__alpha(ink, 0));
-    sleeve__add_band(rings, pitch - w, pitch, ink);
-  } else if (sleeve__chance(r, p->two_tone)) {
-    /* a ground and one colour */
-    static const int others[3] = {SLEEVE_MID, SLEEVE_ACCENT, SLEEVE_ACCENT2};
-    int ground = sleeve__chance(r, 50) ? SLEEVE_DEEP : SLEEVE_PALE;
-    int32_t w = sleeve__range(r, 350, 900), w2 = sleeve__range(r, 150, 450);
-    int other = others[sleeve__below(r, 3)];
-    sleeve__add_band(rings, 0, w, g->palette[ground]);
-    sleeve__add_band(rings, w, w + w2, g->palette[other]);
-    g->cover->base = g->palette[ground];
-  } else {
-    /* the deep, mid and pale tones of one family, in some order */
-    static const int orders[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1},
-                                     {2, 1, 0}};
-    const int *order = orders[sleeve__below(r, 6)];
-    int i;
-    int32_t at = 0;
-    for (i = 0; i < 3; i++) {
-      int32_t w = sleeve__range(r, 250, 800);
-      sleeve__add_band(rings, at, at + w, g->palette[order[i]]);
-      at += w;
-    }
-    g->cover->base = rings->stops[0].colour;
-  }
-  if (sleeve__chance(r, p->disc)) {
-    int32_t dr = sleeve__range(r, 900, 1600);
-    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
-    sleeve__add_disc(g, x, y, dr, g->palette[SLEEVE_ACCENT]);
-  }
-}
-
-/* Two large discs or ellipses, overlapping or from the edges, over a ground. */
-void sleeve_compose_orbs(sleeve_builder *g, const void *params) {
-  const sleeve_orbs_params *p = params ? (const sleeve_orbs_params *)params
-                                       : &sleeve__orbs_defaults;
-  sleeve_rng *r = &g->rng;
-  static const uint16_t grounds[5] = {4, 3, 1, 0, 0};
-  int ground = sleeve__pick_role(g, grounds), i;
-  static const int roles[4] = {SLEEVE_PALE, SLEEVE_ACCENT, SLEEVE_ACCENT2, SLEEVE_MID};
-  int first = sleeve__below(r, 4);
-  g->cover->base = g->palette[ground];
-  if (sleeve__chance(r, p->wash)) {
-    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 100, 170));
-    sleeve__add_stop(wash, 0, g->palette[ground]);
-    sleeve__add_stop(wash, sleeve__along(wash, 1000),
-                     g->palette[ground == SLEEVE_DEEP ? SLEEVE_MID : SLEEVE_DEEP]);
-  }
-  for (i = 0; i < 2; i++) {
-    int edge = sleeve__chance(r, p->edge);
-    int32_t x = edge ? (i == 0 ? sleeve__range(r, -1000, 2500) : sleeve__range(r, 7500, 11000))
-                     : sleeve__range(r, 2500, 7500);
-    int32_t y = edge ? (i == 0 ? sleeve__range(r, 6000, 11000) : sleeve__range(r, -1000, 4000))
-                     : sleeve__range(r, 2500, 7500);
-    int32_t rad = edge ? sleeve__range(r, 3000, 4800) : sleeve__range(r, 1800, 3200);
-    int role = roles[(first + i) % 4];
-    sleeve_layer *orb;
-    if (role == ground) role = SLEEVE_PALE;
-    orb = sleeve__add_radial(g, x, y);
-    orb->ey = sleeve__chance(r, p->oval) ? sleeve__range(r, 6000, 9000) : SLEEVE_UNIT;
-    sleeve__add_band(orb, 0, rad, g->palette[role]);
-    sleeve__add_stop(orb, rad, sleeve__alpha(g->palette[role], 0));
-  }
-}
-
-/* A checkerboard, with a disc or a band over it. */
-void sleeve_compose_checks(sleeve_builder *g, const void *params) {
-  const sleeve_checks_params *p = params ? (const sleeve_checks_params *)params
-                                         : &sleeve__checks_defaults;
-  sleeve_rng *r = &g->rng;
-  sleeve_layer *c = sleeve__add_layer(g, SLEEVE_CHECKER, 0);
-  int32_t tile = sleeve__range(r, p->tile_min, p->tile_max);
-  int dark = sleeve__chance(r, p->dark);
-  c->ex = c->ey = tile;
-  c->cx = 0;
-  c->cy = 0;
-  sleeve__add_stop(c, 0, g->palette[SLEEVE_PALE]);
-  sleeve__add_stop(c, 0, g->palette[dark ? SLEEVE_DEEP : SLEEVE_MID]);
-  g->cover->base = g->palette[SLEEVE_PALE];
-  if (sleeve__chance(r, p->disc)) {
-    int32_t dr = sleeve__range(r, 1800, 3200);
-    sleeve_layer *d = sleeve__add_radial(g, 5000, 5000);
-    sleeve__add_band(d, 0, dr, g->palette[SLEEVE_ACCENT]);
-    sleeve__add_band(d, dr, dr + sleeve__range(r, 300, 700), g->palette[SLEEVE_PALE]);
-    sleeve__add_stop(d, d->stops[3].at, sleeve__alpha(g->palette[SLEEVE_PALE], 0));
-  } else {
-    sleeve_layer *b = sleeve__add_linear(g, 180);
-    int32_t at = sleeve__range(r, 5500, 7500);
-    sleeve__add_stop(b, at, sleeve__alpha(g->palette[SLEEVE_ACCENT], 0));
-    sleeve__add_band(b, at, SLEEVE_UNIT, g->palette[SLEEVE_ACCENT]);
-  }
-}
-
-/* ---- Palette hooks ----------------------------------------------------------------------- */
-
-static const sleeve_tint_params sleeve__tint_defaults = {0xf2e3c6, 250};
-static const sleeve_chroma_params sleeve__chroma_defaults = {500};
-static const sleeve_monochrome_params sleeve__monochrome_defaults = {-1};
-static const sleeve_lightness_params sleeve__lightness_defaults = {150, 900};
-static const sleeve_duotone_params sleeve__duotone_defaults = {0x1d2b4f, 0xf3e8d2};
-
-/* Every colour mixed toward one colour. */
-void sleeve_palette_tint(sleeve_builder *b, const void *params) {
-  const sleeve_tint_params *p = params ? (const sleeve_tint_params *)params
-                                       : &sleeve__tint_defaults;
-  int i;
-  for (i = 0; i < SLEEVE_ROLES; i++)
-    b->palette[i] = sleeve__mix_colour(b->palette[i], sleeve__rgb(p->colour), p->amount);
-}
-
-/* Every colour's chroma scaled. */
-void sleeve_palette_chroma(sleeve_builder *b, const void *params) {
-  const sleeve_chroma_params *p = params ? (const sleeve_chroma_params *)params
-                                         : &sleeve__chroma_defaults;
-  int i;
-  for (i = 0; i < SLEEVE_ROLES; i++) {
-    int32_t l, c, h;
-    sleeve_to_oklch(b->palette[i], &l, &c, &h);
-    b->palette[i] = sleeve_oklch(l, (int32_t)sleeve__div_round((int64_t)c * p->scale, 1000), h);
-  }
-}
-
-/* Every colour turned to one hue, keeping its lightness and chroma: the given hue, or the hue
-   of the palette's most chromatic colour. */
-void sleeve_palette_monochrome(sleeve_builder *b, const void *params) {
-  const sleeve_monochrome_params *p = params ? (const sleeve_monochrome_params *)params
-                                             : &sleeve__monochrome_defaults;
-  int32_t l[SLEEVE_ROLES], c[SLEEVE_ROLES], h[SLEEVE_ROLES], hue = p->hue;
-  int i, key = 0;
-  for (i = 0; i < SLEEVE_ROLES; i++) {
-    sleeve_to_oklch(b->palette[i], &l[i], &c[i], &h[i]);
-    if (c[i] > c[key]) key = i;
-  }
-  if (hue < 0) hue = h[key];
-  for (i = 0; i < SLEEVE_ROLES; i++) b->palette[i] = sleeve_oklch(l[i], c[i], hue);
-}
-
-/* Every colour's lightness mapped from 0 to 1000 onto lo to hi. */
-void sleeve_palette_lightness(sleeve_builder *b, const void *params) {
-  const sleeve_lightness_params *p = params ? (const sleeve_lightness_params *)params
-                                            : &sleeve__lightness_defaults;
-  int i;
-  for (i = 0; i < SLEEVE_ROLES; i++) {
-    int32_t l, c, h;
-    sleeve_to_oklch(b->palette[i], &l, &c, &h);
-    l = p->lo + (int32_t)sleeve__div_round((int64_t)l * (p->hi - p->lo), 1000);
-    b->palette[i] = sleeve_oklch(l, c, h);
-  }
-}
-
-/* Two inks: the darkest colour becomes the dark ink, the lightest the light one, and the rest
-   fall between them by their lightness. */
-void sleeve_palette_duotone(sleeve_builder *b, const void *params) {
-  const sleeve_duotone_params *p = params ? (const sleeve_duotone_params *)params
-                                          : &sleeve__duotone_defaults;
-  int32_t l[SLEEVE_ROLES], c, h, lo = 1000, hi = 0;
-  int i;
-  for (i = 0; i < SLEEVE_ROLES; i++) {
-    sleeve_to_oklch(b->palette[i], &l[i], &c, &h);
-    if (l[i] < lo) lo = l[i];
-    if (l[i] > hi) hi = l[i];
-  }
-  for (i = 0; i < SLEEVE_ROLES; i++) {
-    int32_t t = hi > lo ? (int32_t)sleeve__div_round((int64_t)(l[i] - lo) * 1000, hi - lo) : 500;
-    b->palette[i] = sleeve__mix_colour(sleeve__rgb(p->dark), sleeve__rgb(p->light), t);
-  }
-}
-
-/* ---- Finishers --------------------------------------------------------------------------- */
-
-static const sleeve_vignette_params sleeve__vignette_defaults = {SLEEVE_DEEP, 110, 4500, 7500};
-static const sleeve_wash_params sleeve__wash_defaults = {SLEEVE_PALE, 40};
-static const sleeve_frame_params sleeve__frame_defaults = {SLEEVE_PALE, 255, 600};
-static const sleeve_lines_params sleeve__lines_defaults = {SLEEVE_DEEP, 36, 45, 160, 60};
-
-static sleeve_colour sleeve__role_colour(const sleeve_builder *b, int32_t role, int32_t alpha) {
-  return sleeve__alpha(b->palette[sleeve__clamp(role, 0, SLEEVE_ROLES - 1)], alpha);
-}
-
-/* The edges darkened toward a colour, from `inner` out from the centre to full at `outer`. */
-void sleeve_finish_vignette(sleeve_builder *b, const void *params) {
-  const sleeve_vignette_params *p = params ? (const sleeve_vignette_params *)params
-                                           : &sleeve__vignette_defaults;
-  sleeve_layer *l = sleeve__add_radial(b, 5000, 5000);
-  sleeve_colour c = sleeve__role_colour(b, p->role, p->alpha);
-  sleeve__add_stop(l, p->inner, sleeve__alpha(c, 0));
-  sleeve__add_stop(l, p->outer, c);
-}
-
-/* A translucent colour over the whole cover. */
-void sleeve_finish_wash(sleeve_builder *b, const void *params) {
-  const sleeve_wash_params *p = params ? (const sleeve_wash_params *)params
-                                       : &sleeve__wash_defaults;
-  sleeve__add_stop(sleeve__add_linear(b, 0), 0, sleeve__role_colour(b, p->role, p->alpha));
-}
-
-/* A border `width` wide around the cover, as two layers. */
-void sleeve_finish_frame(sleeve_builder *b, const void *params) {
-  const sleeve_frame_params *p = params ? (const sleeve_frame_params *)params
-                                        : &sleeve__frame_defaults;
-  sleeve_colour c = sleeve__role_colour(b, p->role, p->alpha), clear = sleeve__alpha(c, 0);
-  int side;
-  for (side = 0; side < 2; side++) {
-    sleeve_layer *l = sleeve__add_linear(b, side ? 180 : 90);
-    sleeve__add_band(l, 0, p->width, c);
-    sleeve__add_band(l, p->width, SLEEVE_UNIT - p->width, clear);
-    sleeve__add_band(l, SLEEVE_UNIT - p->width, SLEEVE_UNIT, c);
-  }
-}
-
-/* Fine repeating lines over the whole cover. */
-void sleeve_finish_lines(sleeve_builder *b, const void *params) {
-  const sleeve_lines_params *p = params ? (const sleeve_lines_params *)params
-                                        : &sleeve__lines_defaults;
-  sleeve_layer *l = sleeve__add_layer(b, SLEEVE_LINEAR, 1);
-  sleeve_colour c = sleeve__role_colour(b, p->role, p->alpha);
-  l->angle = p->angle;
-  sleeve__add_band(l, 0, p->pitch - p->width, sleeve__alpha(c, 0));
-  sleeve__add_band(l, p->pitch - p->width, p->pitch, c);
-}
-
-/* ---- Built-in pieces --------------------------------------------------------------------- */
 
 #define SLEEVE__CHANCE(name, value) {name, 0, 100, value, -1}
 #define SLEEVE__COUNT(array) ((int)(sizeof array / sizeof array[0]))
@@ -1754,6 +1178,650 @@ static const sleeve_param sleeve__lines_params[] = {
   {"role", 0, 4, SLEEVE_DEEP, -1}, {"alpha", 0, 255, 36, -1}, {"angle", 0, 359, 45, -1},
   {"pitch", 40, 2000, 160, -1}, {"width", 10, 2000, 60, 3},
 };
+
+/* A built-in piece's parameters as it draws with them: the defaults for NULL, each value
+   within its range and then at most the one its at_most names. */
+static const int32_t *sleeve__values(const sleeve_param *list, int n, const sleeve_params *defaults,
+                                     const void *params, int32_t *v) {
+  const int32_t *given = (params ? (const sleeve_params *)params : defaults)->v;
+  int i;
+  for (i = 0; i < n; i++) v[i] = sleeve__clamp(given[i], list[i].lo, list[i].hi);
+  for (i = 0; i < n; i++)
+    if (list[i].at_most >= 0 && v[i] > v[list[i].at_most]) v[i] = v[list[i].at_most];
+  return v;
+}
+
+#define SLEEVE__VALUES(name, params, v)                                                      \
+  sleeve__values(sleeve__##name##_params, SLEEVE__COUNT(sleeve__##name##_params),            \
+                 &sleeve__##name##_defaults, params, v)
+
+/* ---- Compositions ------------------------------------------------------------------------ */
+
+static const sleeve_params sleeve__horizon_defaults = {{40, 60, 8, 420, 650, 85, 30, 700, 1500, 55,
+                                                         35}};
+static const sleeve_params sleeve__glow_defaults = {{60, 4500, 6500, 170, 220, 55}};
+static const sleeve_params sleeve__disc_defaults = {{35, 60, 900, 1400, 2, 3, 40, 40}};
+static const sleeve_params sleeve__pair_defaults = {{60, 1800, 2300, 800, 1300, 50, 60}};
+static const sleeve_params sleeve__stripes_defaults = {{65, 2, 4, 4, 40}};
+static const sleeve_params sleeve__bands_defaults = {{25, 3, 4, 40, 30, 30}};
+static const sleeve_params sleeve__split_defaults = {{20, 160, 45, 55, 1000, 2200}};
+static const sleeve_params sleeve__bars_defaults = {{70, 2, 3, 25}};
+static const sleeve_params sleeve__constellation_defaults = {{4, 9, 35, 200, 450}};
+static const sleeve_params sleeve__grooves_defaults = {{25, 50, 20}};
+static const sleeve_params sleeve__orbs_defaults = {{50, 50, 40}};
+static const sleeve_params sleeve__checks_defaults = {{400, 1000, 50, 60}};
+
+/* A sky over ground at a horizon, a sun or moon in the sky, and sometimes lines in the ground.
+   The ground is its own layer over the sun, so a setting sun sinks behind it. */
+void sleeve_compose_horizon(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(horizon, params, v);
+  sleeve_rng *r = &g->rng;
+  int night = sleeve__chance(r, p[SLEEVE_HORIZON_NIGHT]);
+  int32_t tilt = sleeve__chance(r, p[SLEEVE_HORIZON_LEVEL])
+                     ? 0 : sleeve__range(r, -p[SLEEVE_HORIZON_TILT], p[SLEEVE_HORIZON_TILT]);
+  int32_t horizon = sleeve__range(r, p[SLEEVE_HORIZON_HORIZON_MIN], p[SLEEVE_HORIZON_HORIZON_MAX]);
+  int32_t band = 0;
+  sleeve_layer *sky = sleeve__add_linear(g, 180 + tilt), *land;
+  int32_t h = sleeve__along(sky, horizon), end = sleeve__along(sky, 1000);
+  sleeve_colour top = g->palette[night ? SLEEVE_DEEP : SLEEVE_MID];
+  sleeve_colour low = g->palette[night ? SLEEVE_MID : SLEEVE_PALE];
+  sleeve_colour ground = g->palette[SLEEVE_DEEP], edge = g->palette[SLEEVE_ACCENT2];
+  sleeve__add_stop(sky, 0, top);
+  sleeve__add_stop(sky, h, low);
+  if (sleeve__chance(r, p[SLEEVE_HORIZON_SUN])) {
+    int setting = sleeve__chance(r, p[SLEEVE_HORIZON_SETTING]);
+    int32_t sun_r = sleeve__range(r, p[SLEEVE_HORIZON_SUN_MIN], p[SLEEVE_HORIZON_SUN_MAX]);
+    int32_t sun_x = sleeve__range(r, 2000, 8000);
+    int32_t sun_y = setting ? horizon * 10 : sleeve__range(r, 1500, horizon * 10 - sun_r - 600);
+    if (sun_y < sun_r + 500) sun_y = sun_r + 500;
+    sleeve__add_disc(g, sun_x, sun_y, sun_r, g->palette[night ? SLEEVE_PALE : SLEEVE_ACCENT]);
+  }
+  land = sleeve__add_linear(g, 180 + tilt);
+  if (sleeve__chance(r, p[SLEEVE_HORIZON_BAND])) band = sleeve__range(r, 120, 450);
+  sleeve__add_stop(land, h, sleeve__alpha(band ? edge : ground, 0));
+  if (band) sleeve__add_band(land, h, h + band, edge);
+  sleeve__add_band(land, h + band, end, ground);
+  if (sleeve__chance(r, p[SLEEVE_HORIZON_LINES])) {
+    int32_t gap = sleeve__range(r, 400, 900), w = sleeve__range(r, 60, 160), at = h + band + gap;
+    sleeve_colour c = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 70, 140));
+    if (at + w < end) {
+      sleeve_layer *lines = sleeve__add_linear(g, 180 + tilt);
+      while (lines->stop_count + 4 <= SLEEVE_MAX_STOPS && at + w < end) {
+        sleeve__add_stop(lines, at, sleeve__alpha(c, 0));
+        sleeve__add_band(lines, at, at + w, c);
+        sleeve__add_stop(lines, at + w, sleeve__alpha(c, 0));
+        at += w + gap;
+        gap = gap * 3 / 4 + 120;
+      }
+    }
+  }
+}
+
+/* A sky wash with a glow rising from the bottom edge, at dusk or at dawn, and sometimes a sun
+   or moon above it. */
+void sleeve_compose_glow(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(glow, params, v);
+  sleeve_rng *r = &g->rng;
+  sleeve_layer *wash = sleeve__add_linear(g, 180);
+  int dusk = sleeve__chance(r, p[SLEEVE_GLOW_DUSK]);
+  int32_t gx = sleeve__range(r, 3500, 6500);
+  int32_t radius = sleeve__range(r, p[SLEEVE_GLOW_RADIUS_MIN], p[SLEEVE_GLOW_RADIUS_MAX]);
+  sleeve__add_stop(wash, 0, g->palette[dusk ? SLEEVE_DEEP : SLEEVE_MID]);
+  if (dusk) sleeve__add_stop(wash, sleeve__range(r, 4500, 6500), g->palette[SLEEVE_MID]);
+  sleeve__add_stop(wash, SLEEVE_UNIT, g->palette[dusk ? SLEEVE_ACCENT2 : SLEEVE_PALE]);
+  {
+    int32_t gy = SLEEVE_UNIT + sleeve__range(r, 0, 800), ey = sleeve__range(r, 5500, 8000);
+    int32_t alpha = sleeve__range(r, p[SLEEVE_GLOW_ALPHA_MIN], p[SLEEVE_GLOW_ALPHA_MAX]);
+    sleeve__add_glow(g, gx, gy, SLEEVE_UNIT, ey, radius, radius / 3, g->palette[SLEEVE_PALE],
+                     alpha);
+  }
+  if (sleeve__chance(r, p[SLEEVE_GLOW_SUN])) {
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 1800, 4000);
+    int32_t size = sleeve__range(r, 700, 1300);
+    sleeve__add_disc(g, x, y, size, g->palette[SLEEVE_ACCENT]);
+  }
+}
+
+/* Concentric rings on a ground, or a record with grooves and a label, under a faint wash. */
+void sleeve_compose_disc(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(disc, params, v);
+  sleeve_rng *r = &g->rng;
+  static const uint16_t grounds[5] = {4, 2, 4, 0, 1};
+  int ground = sleeve__pick_role(g, grounds);
+  int32_t cx = sleeve__chance(r, p[SLEEVE_DISC_CENTRED]) ? 5000 : sleeve__range(r, 3500, 6500);
+  int32_t cy = sleeve__chance(r, p[SLEEVE_DISC_CENTRED]) ? 5000 : sleeve__range(r, 3500, 6500);
+  sleeve_colour bg = g->palette[ground];
+  g->cover->base = bg;
+  if (sleeve__chance(r, p[SLEEVE_DISC_RECORD])) {
+    /* the vinyl is the base, so the grooves on it and the ground around it meet in one edge */
+    int32_t outer = sleeve__range(r, 3300, 4300);
+    int32_t label = sleeve__range(r, p[SLEEVE_DISC_LABEL_MIN], p[SLEEVE_DISC_LABEL_MAX]);
+    int32_t pitch = sleeve__range(r, 90, 200);
+    sleeve_colour line = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 25, 45));
+    sleeve_layer *grooves = sleeve__add_radial(g, cx, cy), *around;
+    g->cover->base = g->palette[ground == SLEEVE_DEEP ? SLEEVE_MID : SLEEVE_DEEP];
+    grooves->repeating = 1;
+    sleeve__add_band(grooves, 0, pitch / 2, sleeve__alpha(line, 0));
+    sleeve__add_band(grooves, pitch / 2, pitch, line);
+    around = sleeve__add_radial(g, cx, cy);
+    sleeve__add_stop(around, outer, sleeve__alpha(bg, 0));
+    sleeve__add_stop(around, outer, bg);
+    sleeve__add_disc(g, cx, cy, label,
+                     g->palette[sleeve__chance(r, 50) ? SLEEVE_ACCENT : SLEEVE_ACCENT2]);
+    sleeve__add_disc(g, cx, cy, sleeve__range(r, 120, 220), bg);
+  } else {
+    sleeve_layer *rings = sleeve__add_radial(g, cx, cy);
+    static const int order[4] = {SLEEVE_ACCENT, SLEEVE_PALE, SLEEVE_MID, SLEEVE_DEEP};
+    int count = sleeve__range(r, p[SLEEVE_DISC_RINGS_MIN], p[SLEEVE_DISC_RINGS_MAX]), i;
+    int first = sleeve__below(r, 4);
+    int32_t at = 0;
+    for (i = 0; i < count; i++) {
+      int role = order[(first + i) % 4];
+      int32_t w = i == 0 ? sleeve__range(r, 1000, 2400) : sleeve__range(r, 150, 900);
+      if (role == ground) role = SLEEVE_ACCENT2;
+      sleeve__add_band(rings, at, at + w, g->palette[role]);
+      at += w;
+    }
+    sleeve__add_stop(rings, at, sleeve__alpha(rings->stops[rings->stop_count - 1].colour, 0));
+    if (sleeve__chance(r, p[SLEEVE_DISC_HALO])) {
+      sleeve_layer *halo = sleeve__add_radial(g, cx, cy);
+      int32_t gap = sleeve__range(r, 300, 800), w = sleeve__range(r, 120, 300);
+      sleeve_colour c = sleeve__alpha(rings->stops[0].colour, sleeve__range(r, 80, 140));
+      sleeve__add_stop(halo, at + gap, sleeve__alpha(c, 0));
+      sleeve__add_band(halo, at + gap, at + gap + w, c);
+      sleeve__add_stop(halo, at + gap + w, sleeve__alpha(c, 0));
+    }
+  }
+  if (sleeve__chance(r, p[SLEEVE_DISC_WASH])) {
+    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 135, 200));
+    sleeve__add_stop(wash, 0, sleeve__alpha(g->palette[SLEEVE_PALE], 0));
+    sleeve__add_stop(wash, sleeve__along(wash, 1000), sleeve__alpha(g->palette[SLEEVE_PALE], 60));
+  }
+}
+
+/* Two matching ringed discs side by side, as reels. */
+void sleeve_compose_pair(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(pair, params, v);
+  sleeve_rng *r = &g->rng;
+  int32_t spread = sleeve__range(r, p[SLEEVE_PAIR_SPREAD_MIN], p[SLEEVE_PAIR_SPREAD_MAX]);
+  int32_t y = sleeve__range(r, 4200, 5800);
+  int32_t hub = sleeve__range(r, p[SLEEVE_PAIR_HUB_MIN], p[SLEEVE_PAIR_HUB_MAX]);
+  int32_t rim = sleeve__range(r, 250, 450);
+  int32_t gap = sleeve__range(r, 200, 400);
+  int dark = sleeve__chance(r, p[SLEEVE_PAIR_DARK]), side;
+  sleeve_colour ground = dark ? g->palette[SLEEVE_DEEP] : g->palette[SLEEVE_PALE];
+  sleeve_colour wheel = dark ? g->palette[SLEEVE_PALE] : g->palette[SLEEVE_DEEP];
+  g->cover->base = ground;
+  if (sleeve__chance(r, p[SLEEVE_PAIR_STRIP])) {
+    sleeve_layer *strip = sleeve__add_linear(g, 180);
+    int32_t half = sleeve__range(r, 1600, 2400);
+    sleeve_colour c = g->palette[SLEEVE_MID];
+    sleeve__add_stop(strip, y - half, sleeve__alpha(c, 0));
+    sleeve__add_band(strip, y - half, y + half, c);
+    sleeve__add_stop(strip, y + half, sleeve__alpha(c, 0));
+  }
+  for (side = -1; side <= 1; side += 2) {
+    sleeve_layer *reel = sleeve__add_radial(g, 5000 + side * spread, y);
+    sleeve__add_band(reel, 0, hub, wheel);
+    sleeve__add_band(reel, hub, hub + gap, ground);
+    sleeve__add_band(reel, hub + gap, hub + gap + rim, wheel);
+    sleeve__add_stop(reel, hub + gap + rim, sleeve__alpha(wheel, 0));
+  }
+  if (sleeve__chance(r, p[SLEEVE_PAIR_SPOTS])) {
+    int32_t spot = sleeve__range(r, 180, 320);
+    sleeve__add_disc(g, 5000 - spread, y, spot, g->palette[SLEEVE_ACCENT]);
+    sleeve__add_disc(g, 5000 + spread, y, spot, g->palette[SLEEVE_ACCENT]);
+  }
+}
+
+/* Repeating stripes at an angle, solid or as fine lines over a wash. */
+void sleeve_compose_stripes(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(stripes, params, v);
+  sleeve_rng *r = &g->rng;
+  static const int16_t angles[10] = {0, 20, 45, 65, 90, 105, 115, 135, 160, 120};
+  int32_t angle = angles[sleeve__below(r, 10)];
+  int32_t wobble = sleeve__range(r, -p[SLEEVE_STRIPES_WOBBLE], p[SLEEVE_STRIPES_WOBBLE]);
+  angle += wobble;
+  if (sleeve__chance(r, p[SLEEVE_STRIPES_SOLID])) {
+    sleeve_layer *s = sleeve__add_linear(g, angle);
+    static const int order[5] = {SLEEVE_DEEP, SLEEVE_MID, SLEEVE_PALE, SLEEVE_ACCENT,
+                                 SLEEVE_ACCENT2};
+    int count = sleeve__range(r, p[SLEEVE_STRIPES_COLOURS_MIN], p[SLEEVE_STRIPES_COLOURS_MAX]), i;
+    int first = sleeve__below(r, 3);
+    int32_t at = 0;
+    s->repeating = 1;
+    for (i = 0; i < count; i++) {
+      int role = order[(first + i * 2) % 5];
+      int32_t w = i == 0 ? sleeve__range(r, 400, 1200)
+                         : (role >= SLEEVE_ACCENT ? sleeve__range(r, 100, 300)
+                                                  : sleeve__range(r, 120, 700));
+      sleeve__add_band(s, at, at + w, g->palette[role]);
+      at += w;
+    }
+    g->cover->base = s->stops[0].colour;
+  } else {
+    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 150, 210));
+    sleeve_layer *lines;
+    int dark = sleeve__chance(r, 50);
+    int32_t pitch = sleeve__range(r, 350, 800), w = sleeve__range(r, 40, 120);
+    sleeve_colour ink = dark ? g->palette[SLEEVE_PALE] : g->palette[SLEEVE_DEEP];
+    sleeve__add_stop(wash, 0, dark ? g->palette[SLEEVE_DEEP] : g->palette[SLEEVE_MID]);
+    sleeve__add_stop(wash, sleeve__along(wash, 1000),
+                     dark ? g->palette[SLEEVE_MID] : g->palette[SLEEVE_PALE]);
+    lines = sleeve__add_linear(g, angle);
+    lines->repeating = 1;
+    ink = sleeve__alpha(ink, sleeve__range(r, 60, 120));
+    sleeve__add_band(lines, 0, pitch - w, sleeve__alpha(ink, 0));
+    sleeve__add_band(lines, pitch - w, pitch, ink);
+    if (sleeve__chance(r, p[SLEEVE_STRIPES_DISC])) {
+      int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+      int32_t size = sleeve__range(r, 1000, 1800);
+      sleeve__add_disc(g, x, y, size, g->palette[SLEEVE_ACCENT]);
+    }
+  }
+}
+
+/* Hard bands across the cover in proportion, one of them sometimes a thin accent, and
+   sometimes a disc; or a sheen of translucent bands over a diagonal wash. */
+void sleeve_compose_bands(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(bands, params, v);
+  sleeve_rng *r = &g->rng;
+  static const int16_t angles[6] = {180, 90, 180, 0, 270, 180};
+  static const int order[5] = {SLEEVE_PALE, SLEEVE_MID, SLEEVE_ACCENT, SLEEVE_DEEP,
+                               SLEEVE_ACCENT2};
+  int32_t angle = angles[sleeve__below(r, 6)], weights[4], total = 0, at = 0, length;
+  int count = sleeve__range(r, p[SLEEVE_BANDS_BANDS_MIN], p[SLEEVE_BANDS_BANDS_MAX]);
+  int thin = sleeve__chance(r, p[SLEEVE_BANDS_THIN]) ? sleeve__below(r, count) : -1;
+  int first = sleeve__below(r, 5), i;
+  sleeve_layer *b;
+  if (sleeve__chance(r, p[SLEEVE_BANDS_SHEEN])) {
+    /* a sheen: a diagonal wash crossed by two translucent pale bands */
+    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 120, 160)), *sheen;
+    int32_t a1 = sleeve__range(r, 3500, 4500), w1 = sleeve__range(r, 200, 400);
+    int32_t a2 = a1 + w1 + sleeve__range(r, 800, 1500), w2 = sleeve__range(r, 150, 300);
+    sleeve_colour c1 = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 110, 150));
+    sleeve_colour c2 = sleeve__alpha(g->palette[SLEEVE_PALE], sleeve__range(r, 80, 110));
+    sleeve__add_stop(wash, 0, g->palette[SLEEVE_PALE]);
+    sleeve__add_stop(wash, sleeve__along(wash, 500), g->palette[SLEEVE_MID]);
+    sleeve__add_stop(wash, sleeve__along(wash, 1000), g->palette[SLEEVE_DEEP]);
+    sheen = sleeve__add_linear(g, sleeve__chance(r, 50) ? 0 : sleeve__range(r, -10, 10));
+    sleeve__add_stop(sheen, a1, sleeve__alpha(c1, 0));
+    sleeve__add_band(sheen, a1, a1 + w1, c1);
+    sleeve__add_stop(sheen, a1 + w1, sleeve__alpha(c1, 0));
+    sleeve__add_stop(sheen, a2, sleeve__alpha(c2, 0));
+    sleeve__add_band(sheen, a2, a2 + w2, c2);
+    sleeve__add_stop(sheen, a2 + w2, sleeve__alpha(c2, 0));
+    return;
+  }
+  if (sleeve__chance(r, p[SLEEVE_BANDS_TILT])) angle += sleeve__range(r, -12, 12);
+  b = sleeve__add_linear(g, angle);
+  length = sleeve__along(b, 1000);
+  for (i = 0; i < count; i++) {
+    weights[i] = i == thin ? sleeve__range(r, 3, 6) : sleeve__range(r, 14, 36);
+    total += weights[i];
+  }
+  for (i = 0; i < count; i++) {
+    int32_t next = i == count - 1 ? length : at + length * weights[i] / total;
+    sleeve__add_band(b, at, next, g->palette[order[(first + i) % 5]]);
+    at = next;
+  }
+  g->cover->base = b->stops[0].colour;
+  if (sleeve__chance(r, p[SLEEVE_BANDS_DISC])) {
+    int32_t dr = sleeve__range(r, 900, 1600);
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+    int role = sleeve__chance(r, 50) ? SLEEVE_PALE : SLEEVE_ACCENT;
+    sleeve__add_disc(g, x, y, dr, g->palette[role]);
+  }
+}
+
+/* A hard diagonal split, sometimes crossed by a band, sometimes with a disc. */
+void sleeve_compose_split(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(split, params, v);
+  sleeve_rng *r = &g->rng;
+  int32_t angle = sleeve__range(r, p[SLEEVE_SPLIT_ANGLE_MIN], p[SLEEVE_SPLIT_ANGLE_MAX]);
+  int32_t flip = sleeve__chance(r, 50);
+  sleeve_layer *s = sleeve__add_linear(g, flip ? angle + 180 : angle);
+  int32_t at = sleeve__along(s, sleeve__range(r, 380, 620));
+  int first = sleeve__chance(r, 50) ? SLEEVE_DEEP : SLEEVE_MID;
+  int second = first == SLEEVE_DEEP ? (sleeve__chance(r, 50) ? SLEEVE_PALE : SLEEVE_ACCENT)
+                                    : SLEEVE_PALE;
+  sleeve__add_band(s, 0, at, g->palette[first]);
+  sleeve__add_band(s, at, sleeve__along(s, 1000), g->palette[second]);
+  if (sleeve__chance(r, p[SLEEVE_SPLIT_CROSS])) {
+    sleeve_layer *cross = sleeve__add_linear(g, s->angle + sleeve__range(r, 60, 120));
+    int32_t c = sleeve__along(cross, sleeve__range(r, 350, 650)), w = sleeve__range(r, 500, 1500);
+    sleeve_colour band = g->palette[SLEEVE_ACCENT2];
+    sleeve__add_stop(cross, c, sleeve__alpha(band, 0));
+    sleeve__add_band(cross, c, c + w, band);
+    sleeve__add_stop(cross, c + w, sleeve__alpha(band, 0));
+  }
+  if (sleeve__chance(r, p[SLEEVE_SPLIT_DISC])) {
+    int32_t dr = sleeve__range(r, p[SLEEVE_SPLIT_DISC_MIN], p[SLEEVE_SPLIT_DISC_MAX]);
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+    sleeve__add_disc(g, x, y, dr,
+                     g->palette[second == SLEEVE_ACCENT ? SLEEVE_PALE : SLEEVE_ACCENT]);
+  }
+}
+
+/* Thin bright bars on a dark ground that lightens at the bottom, two bars to a layer. */
+void sleeve_compose_bars(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(bars, params, v);
+  static const int roles[3] = {SLEEVE_ACCENT, SLEEVE_ACCENT2, SLEEVE_PALE};
+  sleeve_rng *r = &g->rng;
+  sleeve_layer *ground = sleeve__add_linear(g, 180);
+  int32_t angle = sleeve__chance(r, p[SLEEVE_BARS_VERTICAL]) ? 90 : 180;
+  sleeve_layer *bars = 0;
+  int count = sleeve__range(r, p[SLEEVE_BARS_BARS_MIN], p[SLEEVE_BARS_BARS_MAX]), i;
+  int32_t at = sleeve__range(r, 1500, 3500), length = sleeve__line_length(angle);
+  sleeve__add_stop(ground, 0, g->palette[SLEEVE_DEEP]);
+  sleeve__add_stop(ground, sleeve__range(r, 6000, 8000), g->palette[SLEEVE_DEEP]);
+  sleeve__add_stop(ground, SLEEVE_UNIT, g->palette[SLEEVE_MID]);
+  if (sleeve__chance(r, p[SLEEVE_BARS_TILT])) angle += sleeve__range(r, -15, 15);
+  for (i = 0; i < count && at < length - 400; i++) {
+    int32_t w = sleeve__range(r, 150, 350);
+    sleeve_colour c = g->palette[roles[i % 3]];
+    if (i % 2 == 0) bars = sleeve__add_linear(g, angle);
+    sleeve__add_stop(bars, at, sleeve__alpha(c, 0));
+    sleeve__add_band(bars, at, at + w, c);
+    sleeve__add_stop(bars, at + w, sleeve__alpha(c, 0));
+    at += w + sleeve__range(r, 600, 2400);
+  }
+}
+
+/* Small bright dots on a night wash, sometimes with a larger moon. */
+void sleeve_compose_constellation(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(constellation, params, v);
+  sleeve_rng *r = &g->rng;
+  sleeve_layer *sky = sleeve__add_linear(g, 180);
+  int count = sleeve__range(r, p[SLEEVE_CONSTELLATION_STARS_MIN], p[SLEEVE_CONSTELLATION_STARS_MAX]), i;
+  int placed = 0, tries = 0;
+  int32_t xs[10], ys[10];
+  sleeve__add_stop(sky, 0, g->palette[SLEEVE_DEEP]);
+  sleeve__add_stop(sky, SLEEVE_UNIT,
+                   sleeve__mix_colour(g->palette[SLEEVE_DEEP], g->palette[SLEEVE_MID], 400));
+  if (sleeve__chance(r, p[SLEEVE_CONSTELLATION_MOON])) {
+    int32_t mr = sleeve__range(r, 900, 1400);
+    xs[placed] = sleeve__range(r, 2500, 7500);
+    ys[placed] = sleeve__range(r, 2000, 5000);
+    sleeve__add_disc(g, xs[placed], ys[placed], mr, g->palette[SLEEVE_PALE]);
+    placed++;
+  }
+  while (placed < count + 1 && tries < 40 && g->cover->layer_count < g->limit) {
+    int32_t x = sleeve__range(r, 1200, 8800), y = sleeve__range(r, 1200, 8800);
+    int ok = 1;
+    tries++;
+    for (i = 0; i < placed; i++) {
+      int64_t dx = x - xs[i], dy = y - ys[i];
+      if (dx * dx + dy * dy < (int64_t)1800 * 1800) ok = 0;
+    }
+    if (!ok) continue;
+    {
+      int32_t dr =
+          sleeve__range(r, p[SLEEVE_CONSTELLATION_STAR_MIN], p[SLEEVE_CONSTELLATION_STAR_MAX]);
+      int role = sleeve__chance(r, 50) ? SLEEVE_ACCENT : (sleeve__chance(r, 50) ? SLEEVE_ACCENT2
+                                                                            : SLEEVE_PALE);
+      xs[placed] = x;
+      ys[placed] = y;
+      placed++;
+      sleeve__add_disc(g, x, y, dr, g->palette[role]);
+    }
+  }
+}
+
+/* Repeating rings from a centre off to one side, as ripples or contours. */
+void sleeve_compose_grooves(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(grooves, params, v);
+  sleeve_rng *r = &g->rng;
+  int32_t cx = sleeve__chance(r, 50) ? sleeve__range(r, -2000, 12000)
+                                     : (sleeve__chance(r, 50) ? 0 : SLEEVE_UNIT);
+  int32_t cy = sleeve__range(r, -2000, 12000);
+  sleeve_layer *rings = sleeve__add_radial(g, cx, cy);
+  int lines = sleeve__chance(r, p[SLEEVE_GROOVES_LINES]);
+  rings->repeating = 1;
+  if (lines) {
+    int dark = sleeve__chance(r, 50);
+    int32_t pitch = sleeve__range(r, 350, 700), w = sleeve__range(r, 40, 90);
+    sleeve_colour ink = dark ? g->palette[SLEEVE_PALE] : g->palette[SLEEVE_DEEP];
+    g->cover->base = dark ? g->palette[SLEEVE_DEEP] : g->palette[SLEEVE_PALE];
+    ink = sleeve__alpha(ink, sleeve__range(r, 70, 130));
+    sleeve__add_band(rings, 0, pitch - w, sleeve__alpha(ink, 0));
+    sleeve__add_band(rings, pitch - w, pitch, ink);
+  } else if (sleeve__chance(r, p[SLEEVE_GROOVES_TWO_TONE])) {
+    /* a ground and one colour */
+    static const int others[3] = {SLEEVE_MID, SLEEVE_ACCENT, SLEEVE_ACCENT2};
+    int ground = sleeve__chance(r, 50) ? SLEEVE_DEEP : SLEEVE_PALE;
+    int32_t w = sleeve__range(r, 350, 900), w2 = sleeve__range(r, 150, 450);
+    int other = others[sleeve__below(r, 3)];
+    sleeve__add_band(rings, 0, w, g->palette[ground]);
+    sleeve__add_band(rings, w, w + w2, g->palette[other]);
+    g->cover->base = g->palette[ground];
+  } else {
+    /* the deep, mid and pale tones of one family, in some order */
+    static const int orders[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1},
+                                     {2, 1, 0}};
+    const int *order = orders[sleeve__below(r, 6)];
+    int i;
+    int32_t at = 0;
+    for (i = 0; i < 3; i++) {
+      int32_t w = sleeve__range(r, 250, 800);
+      sleeve__add_band(rings, at, at + w, g->palette[order[i]]);
+      at += w;
+    }
+    g->cover->base = rings->stops[0].colour;
+  }
+  if (sleeve__chance(r, p[SLEEVE_GROOVES_DISC])) {
+    int32_t dr = sleeve__range(r, 900, 1600);
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+    sleeve__add_disc(g, x, y, dr, g->palette[SLEEVE_ACCENT]);
+  }
+}
+
+/* Two large discs or ellipses, overlapping or from the edges, over a ground. */
+void sleeve_compose_orbs(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(orbs, params, v);
+  sleeve_rng *r = &g->rng;
+  static const uint16_t grounds[5] = {4, 3, 1, 0, 0};
+  int ground = sleeve__pick_role(g, grounds), i;
+  static const int roles[4] = {SLEEVE_PALE, SLEEVE_ACCENT, SLEEVE_ACCENT2, SLEEVE_MID};
+  int first = sleeve__below(r, 4);
+  g->cover->base = g->palette[ground];
+  if (sleeve__chance(r, p[SLEEVE_ORBS_WASH])) {
+    sleeve_layer *wash = sleeve__add_linear(g, sleeve__range(r, 100, 170));
+    sleeve__add_stop(wash, 0, g->palette[ground]);
+    sleeve__add_stop(wash, sleeve__along(wash, 1000),
+                     g->palette[ground == SLEEVE_DEEP ? SLEEVE_MID : SLEEVE_DEEP]);
+  }
+  for (i = 0; i < 2; i++) {
+    int edge = sleeve__chance(r, p[SLEEVE_ORBS_EDGE]);
+    int32_t x = edge ? (i == 0 ? sleeve__range(r, -1000, 2500) : sleeve__range(r, 7500, 11000))
+                     : sleeve__range(r, 2500, 7500);
+    int32_t y = edge ? (i == 0 ? sleeve__range(r, 6000, 11000) : sleeve__range(r, -1000, 4000))
+                     : sleeve__range(r, 2500, 7500);
+    int32_t rad = edge ? sleeve__range(r, 3000, 4800) : sleeve__range(r, 1800, 3200);
+    int role = roles[(first + i) % 4];
+    sleeve_layer *orb;
+    if (role == ground) role = SLEEVE_PALE;
+    orb = sleeve__add_radial(g, x, y);
+    orb->ey = sleeve__chance(r, p[SLEEVE_ORBS_OVAL]) ? sleeve__range(r, 6000, 9000) : SLEEVE_UNIT;
+    sleeve__add_band(orb, 0, rad, g->palette[role]);
+    sleeve__add_stop(orb, rad, sleeve__alpha(g->palette[role], 0));
+  }
+}
+
+/* A checkerboard, with a disc or a band over it. */
+void sleeve_compose_checks(sleeve_builder *g, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(checks, params, v);
+  sleeve_rng *r = &g->rng;
+  sleeve_layer *c = sleeve__add_layer(g, SLEEVE_CHECKER, 0);
+  int32_t tile = sleeve__range(r, p[SLEEVE_CHECKS_TILE_MIN], p[SLEEVE_CHECKS_TILE_MAX]);
+  int dark = sleeve__chance(r, p[SLEEVE_CHECKS_DARK]);
+  c->ex = c->ey = tile;
+  c->cx = 0;
+  c->cy = 0;
+  sleeve__add_stop(c, 0, g->palette[SLEEVE_PALE]);
+  sleeve__add_stop(c, 0, g->palette[dark ? SLEEVE_DEEP : SLEEVE_MID]);
+  g->cover->base = g->palette[SLEEVE_PALE];
+  if (sleeve__chance(r, p[SLEEVE_CHECKS_DISC])) {
+    int32_t dr = sleeve__range(r, 1800, 3200);
+    sleeve_layer *d = sleeve__add_radial(g, 5000, 5000);
+    sleeve__add_band(d, 0, dr, g->palette[SLEEVE_ACCENT]);
+    sleeve__add_band(d, dr, dr + sleeve__range(r, 300, 700), g->palette[SLEEVE_PALE]);
+    sleeve__add_stop(d, d->stops[3].at, sleeve__alpha(g->palette[SLEEVE_PALE], 0));
+  } else {
+    sleeve_layer *b = sleeve__add_linear(g, 180);
+    int32_t at = sleeve__range(r, 5500, 7500);
+    sleeve__add_stop(b, at, sleeve__alpha(g->palette[SLEEVE_ACCENT], 0));
+    sleeve__add_band(b, at, SLEEVE_UNIT, g->palette[SLEEVE_ACCENT]);
+  }
+}
+
+/* ---- Palette hooks ----------------------------------------------------------------------- */
+
+static const sleeve_params sleeve__tint_defaults = {{0xf2e3c6, 250}};
+static const sleeve_params sleeve__chroma_defaults = {{500}};
+static const sleeve_params sleeve__monochrome_defaults = {{-1}};
+static const sleeve_params sleeve__lightness_defaults = {{150, 900}};
+static const sleeve_params sleeve__duotone_defaults = {{0x1d2b4f, 0xf3e8d2}};
+
+/* Every colour mixed toward one colour. */
+void sleeve_palette_tint(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(tint, params, v);
+  int i;
+  for (i = 0; i < SLEEVE_ROLES; i++)
+    b->palette[i] = sleeve__mix_colour(b->palette[i], sleeve__rgb(p[SLEEVE_TINT_COLOUR]),
+                                       p[SLEEVE_TINT_AMOUNT]);
+}
+
+/* Every colour's chroma scaled. */
+void sleeve_palette_chroma(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(chroma, params, v);
+  int i;
+  for (i = 0; i < SLEEVE_ROLES; i++) {
+    int32_t l, c, h;
+    sleeve_to_oklch(b->palette[i], &l, &c, &h);
+    c = (int32_t)sleeve__div_round((int64_t)c * p[SLEEVE_CHROMA_SCALE], 1000);
+    b->palette[i] = sleeve_oklch(l, c, h);
+  }
+}
+
+/* Every colour turned to one hue, keeping its lightness and chroma: the given hue, or the hue
+   of the palette's most chromatic colour. */
+void sleeve_palette_monochrome(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(monochrome, params, v);
+  int32_t l[SLEEVE_ROLES], c[SLEEVE_ROLES], h[SLEEVE_ROLES], hue = p[SLEEVE_MONOCHROME_HUE];
+  int i, key = 0;
+  for (i = 0; i < SLEEVE_ROLES; i++) {
+    sleeve_to_oklch(b->palette[i], &l[i], &c[i], &h[i]);
+    if (c[i] > c[key]) key = i;
+  }
+  if (hue < 0) hue = h[key];
+  for (i = 0; i < SLEEVE_ROLES; i++) b->palette[i] = sleeve_oklch(l[i], c[i], hue);
+}
+
+/* Every colour's lightness mapped from 0 to 1000 onto lo to hi. */
+void sleeve_palette_lightness(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(lightness, params, v);
+  int32_t lo = p[SLEEVE_LIGHTNESS_LO], hi = p[SLEEVE_LIGHTNESS_HI];
+  int i;
+  for (i = 0; i < SLEEVE_ROLES; i++) {
+    int32_t l, c, h;
+    sleeve_to_oklch(b->palette[i], &l, &c, &h);
+    l = lo + (int32_t)sleeve__div_round((int64_t)l * (hi - lo), 1000);
+    b->palette[i] = sleeve_oklch(l, c, h);
+  }
+}
+
+/* Two inks: the darkest colour becomes the dark ink, the lightest the light one, and the rest
+   fall between them by their lightness. */
+void sleeve_palette_duotone(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(duotone, params, v);
+  int32_t l[SLEEVE_ROLES], c, h, lo = 1000, hi = 0;
+  int i;
+  for (i = 0; i < SLEEVE_ROLES; i++) {
+    sleeve_to_oklch(b->palette[i], &l[i], &c, &h);
+    if (l[i] < lo) lo = l[i];
+    if (l[i] > hi) hi = l[i];
+  }
+  for (i = 0; i < SLEEVE_ROLES; i++) {
+    int32_t t = hi > lo ? (int32_t)sleeve__div_round((int64_t)(l[i] - lo) * 1000, hi - lo) : 500;
+    b->palette[i] = sleeve__mix_colour(sleeve__rgb(p[SLEEVE_DUOTONE_DARK]),
+                                       sleeve__rgb(p[SLEEVE_DUOTONE_LIGHT]), t);
+  }
+}
+
+/* ---- Finishers --------------------------------------------------------------------------- */
+
+static const sleeve_params sleeve__vignette_defaults = {{SLEEVE_DEEP, 110, 4500, 7500}};
+static const sleeve_params sleeve__wash_defaults = {{SLEEVE_PALE, 40}};
+static const sleeve_params sleeve__frame_defaults = {{SLEEVE_PALE, 255, 600}};
+static const sleeve_params sleeve__lines_defaults = {{SLEEVE_DEEP, 36, 45, 160, 60}};
+
+static sleeve_colour sleeve__role_colour(const sleeve_builder *b, int32_t role, int32_t alpha) {
+  return sleeve__alpha(b->palette[sleeve__clamp(role, 0, SLEEVE_ROLES - 1)], alpha);
+}
+
+/* The edges darkened toward a colour, from `inner` out from the centre to full at `outer`. */
+void sleeve_finish_vignette(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(vignette, params, v);
+  sleeve_layer *l = sleeve__add_radial(b, 5000, 5000);
+  sleeve_colour c = sleeve__role_colour(b, p[SLEEVE_VIGNETTE_ROLE], p[SLEEVE_VIGNETTE_ALPHA]);
+  sleeve__add_stop(l, p[SLEEVE_VIGNETTE_INNER], sleeve__alpha(c, 0));
+  sleeve__add_stop(l, p[SLEEVE_VIGNETTE_OUTER], c);
+}
+
+/* A translucent colour over the whole cover. */
+void sleeve_finish_wash(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(wash, params, v);
+  sleeve_colour c = sleeve__role_colour(b, p[SLEEVE_WASH_ROLE], p[SLEEVE_WASH_ALPHA]);
+  sleeve__add_stop(sleeve__add_linear(b, 0), 0, c);
+}
+
+/* A border `width` wide around the cover, as two layers. */
+void sleeve_finish_frame(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(frame, params, v);
+  sleeve_colour c = sleeve__role_colour(b, p[SLEEVE_FRAME_ROLE], p[SLEEVE_FRAME_ALPHA]);
+  sleeve_colour clear = sleeve__alpha(c, 0);
+  int side;
+  for (side = 0; side < 2; side++) {
+    sleeve_layer *l = sleeve__add_linear(b, side ? 180 : 90);
+    sleeve__add_band(l, 0, p[SLEEVE_FRAME_WIDTH], c);
+    sleeve__add_band(l, p[SLEEVE_FRAME_WIDTH], SLEEVE_UNIT - p[SLEEVE_FRAME_WIDTH], clear);
+    sleeve__add_band(l, SLEEVE_UNIT - p[SLEEVE_FRAME_WIDTH], SLEEVE_UNIT, c);
+  }
+}
+
+/* Fine repeating lines over the whole cover. */
+void sleeve_finish_lines(sleeve_builder *b, const void *params) {
+  int32_t v[SLEEVE_MAX_PARAMS];
+  const int32_t *p = SLEEVE__VALUES(lines, params, v);
+  sleeve_layer *l = sleeve__add_layer(b, SLEEVE_LINEAR, 1);
+  sleeve_colour c = sleeve__role_colour(b, p[SLEEVE_LINES_ROLE], p[SLEEVE_LINES_ALPHA]);
+  l->angle = p[SLEEVE_LINES_ANGLE];
+  sleeve__add_band(l, 0, p[SLEEVE_LINES_PITCH] - p[SLEEVE_LINES_WIDTH], sleeve__alpha(c, 0));
+  sleeve__add_band(l, p[SLEEVE_LINES_PITCH] - p[SLEEVE_LINES_WIDTH], p[SLEEVE_LINES_PITCH], c);
+}
+
+/* ---- Built-in pieces --------------------------------------------------------------------- */
 
 #define SLEEVE__PIECE(name, kind, layers)                                                    \
   {#name, sleeve_##kind##_##name, &sleeve__##name##_defaults, sleeve__##name##_params,         \
@@ -2571,7 +2639,7 @@ static int sleeve__check_count(sleeve__text *t, const char *name, int count, con
 }
 
 static int sleeve__check_params(sleeve__text *t, const sleeve_piece *piece, const void *params) {
-  const int32_t *v = (const int32_t *)(params ? params : piece->defaults);
+  const int32_t *v = (params ? (const sleeve_params *)params : piece->defaults)->v;
   int i;
   for (i = 0; i < piece->param_count; i++) {
     const sleeve_param *p = &piece->params[i];
@@ -2734,7 +2802,7 @@ static uint64_t sleeve__hash_part(uint64_t h, const sleeve_style_part *part, int
   const sleeve_piece *piece = part->run ? sleeve__builtin(kind, part->run) : 0;
   int i;
   if (piece) {
-    const int32_t *v = (const int32_t *)(part->params ? part->params : piece->defaults);
+    const int32_t *v = (part->params ? (const sleeve_params *)part->params : piece->defaults)->v;
     h = sleeve__hash_int(h, 1);
     h = sleeve__hash_text(h, piece->name);
     for (i = 0; i < piece->param_count; i++) h = sleeve__hash_int(h, v[i]);

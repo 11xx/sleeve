@@ -101,7 +101,7 @@ weights, such as neon's, index the default compositions, so they apply only when
 compositions are the default ones as well.
 
 ```c
-static const sleeve_split_params steep = {30, 150, 20, 80, 1200, 2200};
+static const sleeve_params steep = {{30, 150, 20, 80, 1200, 2200}}; /* split's, in order */
 static const sleeve_style_part parts[] = {
   {"orbs", sleeve_compose_orbs, 0, 3, 0, 0},                     /* NULL: the defaults */
   {"split", sleeve_compose_split, &steep, 2, 0, 0},
@@ -128,15 +128,18 @@ sRGB colour as it is, which is how a style holds a brand's colours. The built-in
 
 ### Built-in pieces
 
-Every built-in composition, palette hook and finisher has a stable name, a function, and a
-parameter struct of `int32_t` fields only (`sleeve_horizon_params` and so on, declared in
-`sleeve.h`). `sleeve_pieces(kind, &count)` lists a kind's pieces and `sleeve_find_piece(kind,
-name)` finds one; each piece lists its parameters in field order with their ranges and
-defaults, and `sleeve_find_param` finds one by name. A skin compiler therefore resolves a
-declared style from names and numbers alone: it looks a piece up, starts from its `defaults`,
-sets the fields it names, and lets `sleeve_style_check` judge the result. A parameter with
+Every built-in composition, palette hook and finisher has a stable name, a function, and its
+parameters as one `sleeve_params`, an array `v` of `SLEEVE_MAX_PARAMS` (16) `int32_t`.
+`sleeve_pieces(kind, &count)` lists a kind's pieces and `sleeve_find_piece(kind, name)` finds
+one; each piece lists its parameters in array order with their ranges and defaults, and
+`sleeve_find_param` gives one's index by name, the index `sleeve.h` names in the piece's enum
+(`v[SLEEVE_HORIZON_SUN_MIN]` is horizon's `sun_min`). A skin compiler therefore resolves a
+declared style from names and numbers alone: it looks a piece up, copies its `defaults`, sets
+the values it names by index, and lets `sleeve_style_check` judge the result. A parameter with
 `at_most` set must not exceed the parameter it names, as each `_min` its `_max`. `NULL`
-parameters are the defaults.
+parameters are the defaults. A built-in's `params` points to a `sleeve_params`; its function,
+called directly, takes a value outside its range as the nearest within it, and then one above
+its `at_most` as that parameter's value.
 
 Below, a bare number is a percentage chance (0 to 100); other ranges follow in brackets. Lengths
 are in side units, colours `0xRRGGBB`, amounts and lightness in thousandths, alpha 0 to 255,
@@ -408,6 +411,7 @@ repository's root runs `make check`.
 | style-hooks | each built-in palette hook changes the palette the composition draws from, in order, and not a given palette; each finisher paints on top | the last palette hook skipped |
 | builder | a horizon with a ring over it and a disc on a ground, both on the builder, pass `sleeve_check` and render as drawn, the horizon as it draws alone; the budget and generator answer as documented | a disc without its closing stop |
 | containment | hooks adding 30 layers of 12 falling stops, or writing invalid layers, counts, base and palette, leave covers that pass `sleeve_check` with a finisher's layers on top; 3,000 styles of built-in pieces with random parameters in range pass too | no layers kept for finishers; invalid layers kept |
+| parameters | the 90 named indices are `sleeve_find_param`'s and the 21 pieces' defaults their own; each piece run by hand with every parameter at `INT32_MIN` or `INT32_MAX` draws as at its lowest or highest | two named indices swapped; values taken outside their ranges |
 | style-check | 17 invalid styles are refused, each for its reason; the default, example and empty styles are accepted | a parameter above its `at_most` accepted |
 | style-hash | equal styles fingerprint equal, `NULL` parameters as the defaults and names aside; each of 13 changes that decide covers changes the fingerprint | a code hook's version left out |
 | given-palette | five colours take their roles in all 120 orders; single colours, and black with white, take theirs with tones derived; 0 and 17 colours are refused; covers keep the colours as assigned, of mood `given`, without palette hooks | deep taken as the lightest |

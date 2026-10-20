@@ -1083,12 +1083,12 @@ static void check_style_shares(void) {
 /* Palette hooks transform the palette before composing, in order, and not a given palette;
    finishers paint over the composition. */
 static void check_style_hooks(void) {
-  static const sleeve_tint_params to_x = {0x3366cc, 1000}, to_y = {0xcc6633, 1000};
-  static const sleeve_monochrome_params blue = {200};
-  static const sleeve_duotone_params inks = {0x202a44, 0xf0e4c8};
-  static const sleeve_lightness_params middle = {400, 600};
-  static const sleeve_chroma_params grey = {0};
-  static const sleeve_wash_params wash = {SLEEVE_ACCENT, 40};
+  static const sleeve_params to_x = {{0x3366cc, 1000}}, to_y = {{0xcc6633, 1000}};
+  static const sleeve_params blue = {{200}};
+  static const sleeve_params inks = {{0x202a44, 0xf0e4c8}};
+  static const sleeve_params middle = {{400, 600}};
+  static const sleeve_params grey = {{0}};
+  static const sleeve_params wash = {{SLEEVE_ACCENT, 40}};
   const sleeve_style_part tint_x = {"tint", sleeve_palette_tint, &to_x, 0, 0, 0};
   const sleeve_style_part tint_y = {"tint", sleeve_palette_tint, &to_y, 0, 0, 0};
   sleeve_style_part one[1], two[2], finish[2];
@@ -1327,8 +1327,9 @@ static void check_builder(void) {
   report("builder", !failed, detail);
 }
 
-/* A random parameter struct within a built-in piece's ranges. */
-static void random_params(const sleeve_piece *piece, int32_t *v, uint64_t *state) {
+/* Random parameters within a built-in piece's ranges. */
+static void random_params(const sleeve_piece *piece, sleeve_params *params, uint64_t *state) {
+  int32_t *v = params->v;
   int i;
   for (i = 0; i < piece->param_count; i++) {
     const sleeve_param *p = &piece->params[i];
@@ -1382,31 +1383,31 @@ static void check_containment(void) {
     const sleeve_piece *comps = sleeve_pieces(SLEEVE_COMPOSE, &n_comp);
     const sleeve_piece *pals = sleeve_pieces(SLEEVE_PALETTE, &n_pal);
     const sleeve_piece *fins = sleeve_pieces(SLEEVE_FINISH, &n_fin);
-    int32_t pc[16], pp[16], pf[2][16];
+    sleeve_params pc, pp, pf[2];
     sleeve_style_part comp, pal, fin[2];
     sleeve_style style;
     sleeve_cover c;
     char reason[256];
     const sleeve_piece *a = &comps[k % n_comp], *p = &pals[(k / 3) % n_pal];
     memset(&style, 0, sizeof style);
-    random_params(a, pc, &state);
-    random_params(p, pp, &state);
+    random_params(a, &pc, &state);
+    random_params(p, &pp, &state);
     memset(&comp, 0, sizeof comp);
     memset(&pal, 0, sizeof pal);
     memset(fin, 0, sizeof fin);
     comp.name = a->name;
     comp.run = a->run;
-    comp.params = pc;
+    comp.params = &pc;
     comp.weight = 1;
     pal.name = p->name;
     pal.run = p->run;
-    pal.params = pp;
+    pal.params = &pp;
     for (j = 0; j < 2; j++) {
       const sleeve_piece *f = &fins[(k / 7 + j) % n_fin];
-      random_params(f, pf[j], &state);
+      random_params(f, &pf[j], &state);
       fin[j].name = f->name;
       fin[j].run = f->run;
-      fin[j].params = pf[j];
+      fin[j].params = &pf[j];
       fin[j].layers = (uint8_t)f->layers;
     }
     style.compositions = &comp, style.composition_count = 1;
@@ -1431,11 +1432,150 @@ static void check_containment(void) {
   report("containment", !failed, detail);
 }
 
+/* ---- Parameters ------------------------------------------------------------------------ */
+
+/* Every built-in parameter's named index, as sleeve.h's enums give them. */
+static const struct {
+  const char *piece, *name;
+  int index;
+} named_params[] = {
+  {"horizon", "night", SLEEVE_HORIZON_NIGHT}, {"horizon", "level", SLEEVE_HORIZON_LEVEL},
+  {"horizon", "tilt", SLEEVE_HORIZON_TILT}, {"horizon", "horizon_min", SLEEVE_HORIZON_HORIZON_MIN},
+  {"horizon", "horizon_max", SLEEVE_HORIZON_HORIZON_MAX}, {"horizon", "sun", SLEEVE_HORIZON_SUN},
+  {"horizon", "setting", SLEEVE_HORIZON_SETTING}, {"horizon", "sun_min", SLEEVE_HORIZON_SUN_MIN},
+  {"horizon", "sun_max", SLEEVE_HORIZON_SUN_MAX}, {"horizon", "band", SLEEVE_HORIZON_BAND},
+  {"horizon", "lines", SLEEVE_HORIZON_LINES}, {"glow", "dusk", SLEEVE_GLOW_DUSK},
+  {"glow", "radius_min", SLEEVE_GLOW_RADIUS_MIN}, {"glow", "radius_max", SLEEVE_GLOW_RADIUS_MAX},
+  {"glow", "alpha_min", SLEEVE_GLOW_ALPHA_MIN}, {"glow", "alpha_max", SLEEVE_GLOW_ALPHA_MAX},
+  {"glow", "sun", SLEEVE_GLOW_SUN}, {"disc", "record", SLEEVE_DISC_RECORD},
+  {"disc", "centred", SLEEVE_DISC_CENTRED}, {"disc", "label_min", SLEEVE_DISC_LABEL_MIN},
+  {"disc", "label_max", SLEEVE_DISC_LABEL_MAX}, {"disc", "rings_min", SLEEVE_DISC_RINGS_MIN},
+  {"disc", "rings_max", SLEEVE_DISC_RINGS_MAX}, {"disc", "halo", SLEEVE_DISC_HALO},
+  {"disc", "wash", SLEEVE_DISC_WASH}, {"pair", "dark", SLEEVE_PAIR_DARK},
+  {"pair", "spread_min", SLEEVE_PAIR_SPREAD_MIN}, {"pair", "spread_max", SLEEVE_PAIR_SPREAD_MAX},
+  {"pair", "hub_min", SLEEVE_PAIR_HUB_MIN}, {"pair", "hub_max", SLEEVE_PAIR_HUB_MAX},
+  {"pair", "strip", SLEEVE_PAIR_STRIP}, {"pair", "spots", SLEEVE_PAIR_SPOTS},
+  {"stripes", "solid", SLEEVE_STRIPES_SOLID},
+  {"stripes", "colours_min", SLEEVE_STRIPES_COLOURS_MIN},
+  {"stripes", "colours_max", SLEEVE_STRIPES_COLOURS_MAX},
+  {"stripes", "wobble", SLEEVE_STRIPES_WOBBLE}, {"stripes", "disc", SLEEVE_STRIPES_DISC},
+  {"bands", "sheen", SLEEVE_BANDS_SHEEN}, {"bands", "bands_min", SLEEVE_BANDS_BANDS_MIN},
+  {"bands", "bands_max", SLEEVE_BANDS_BANDS_MAX}, {"bands", "thin", SLEEVE_BANDS_THIN},
+  {"bands", "tilt", SLEEVE_BANDS_TILT}, {"bands", "disc", SLEEVE_BANDS_DISC},
+  {"split", "angle_min", SLEEVE_SPLIT_ANGLE_MIN}, {"split", "angle_max", SLEEVE_SPLIT_ANGLE_MAX},
+  {"split", "cross", SLEEVE_SPLIT_CROSS}, {"split", "disc", SLEEVE_SPLIT_DISC},
+  {"split", "disc_min", SLEEVE_SPLIT_DISC_MIN}, {"split", "disc_max", SLEEVE_SPLIT_DISC_MAX},
+  {"bars", "vertical", SLEEVE_BARS_VERTICAL}, {"bars", "bars_min", SLEEVE_BARS_BARS_MIN},
+  {"bars", "bars_max", SLEEVE_BARS_BARS_MAX}, {"bars", "tilt", SLEEVE_BARS_TILT},
+  {"constellation", "stars_min", SLEEVE_CONSTELLATION_STARS_MIN},
+  {"constellation", "stars_max", SLEEVE_CONSTELLATION_STARS_MAX},
+  {"constellation", "moon", SLEEVE_CONSTELLATION_MOON},
+  {"constellation", "star_min", SLEEVE_CONSTELLATION_STAR_MIN},
+  {"constellation", "star_max", SLEEVE_CONSTELLATION_STAR_MAX},
+  {"grooves", "lines", SLEEVE_GROOVES_LINES}, {"grooves", "two_tone", SLEEVE_GROOVES_TWO_TONE},
+  {"grooves", "disc", SLEEVE_GROOVES_DISC}, {"orbs", "wash", SLEEVE_ORBS_WASH},
+  {"orbs", "edge", SLEEVE_ORBS_EDGE}, {"orbs", "oval", SLEEVE_ORBS_OVAL},
+  {"checks", "tile_min", SLEEVE_CHECKS_TILE_MIN}, {"checks", "tile_max", SLEEVE_CHECKS_TILE_MAX},
+  {"checks", "dark", SLEEVE_CHECKS_DARK}, {"checks", "disc", SLEEVE_CHECKS_DISC},
+  {"tint", "colour", SLEEVE_TINT_COLOUR}, {"tint", "amount", SLEEVE_TINT_AMOUNT},
+  {"chroma", "scale", SLEEVE_CHROMA_SCALE}, {"monochrome", "hue", SLEEVE_MONOCHROME_HUE},
+  {"lightness", "lo", SLEEVE_LIGHTNESS_LO}, {"lightness", "hi", SLEEVE_LIGHTNESS_HI},
+  {"duotone", "dark", SLEEVE_DUOTONE_DARK}, {"duotone", "light", SLEEVE_DUOTONE_LIGHT},
+  {"vignette", "role", SLEEVE_VIGNETTE_ROLE}, {"vignette", "alpha", SLEEVE_VIGNETTE_ALPHA},
+  {"vignette", "inner", SLEEVE_VIGNETTE_INNER}, {"vignette", "outer", SLEEVE_VIGNETTE_OUTER},
+  {"wash", "role", SLEEVE_WASH_ROLE}, {"wash", "alpha", SLEEVE_WASH_ALPHA},
+  {"frame", "role", SLEEVE_FRAME_ROLE}, {"frame", "alpha", SLEEVE_FRAME_ALPHA},
+  {"frame", "width", SLEEVE_FRAME_WIDTH}, {"lines", "role", SLEEVE_LINES_ROLE},
+  {"lines", "alpha", SLEEVE_LINES_ALPHA}, {"lines", "angle", SLEEVE_LINES_ANGLE},
+  {"lines", "pitch", SLEEVE_LINES_PITCH}, {"lines", "width", SLEEVE_LINES_WIDTH},
+};
+
+/* A builder for one piece run by hand: an empty cover, a palette and a generator state. */
+static void hand_builder(sleeve_builder *b, sleeve_cover *c, uint64_t state) {
+  int i;
+  memset(b, 0, sizeof *b);
+  memset(c, 0, sizeof *c);
+  b->cover = c;
+  b->rng.state = state;
+  b->limit = SLEEVE_MAX_LAYERS;
+  for (i = 0; i < SLEEVE_ROLES; i++) b->palette[i] = hex(0x203040u + 0x302010u * (uint32_t)i);
+}
+
+/* A piece run by hand with these parameters, as the cover, palette and generator it leaves. */
+static void run_piece(const sleeve_piece *piece, const sleeve_params *params, uint64_t state,
+                      sleeve_builder *b, sleeve_cover *c) {
+  hand_builder(b, c, state);
+  piece->run(b, params);
+  b->cover = 0;
+}
+
+/* Built-in parameters are an array whose named indices are sleeve_find_param's, and whose
+   defaults are the pieces' own; a piece run by hand with values beyond its ranges draws as
+   with the nearest in range. */
+static void check_parameters(void) {
+  const char *failed = 0;
+  char detail[512];
+  int i, kind, n, k, pieces = 0;
+  for (i = 0; i < (int)(sizeof named_params / sizeof named_params[0]) && !failed; i++) {
+    const sleeve_piece *piece = 0;
+    for (kind = SLEEVE_COMPOSE; kind <= SLEEVE_FINISH && !piece; kind++)
+      piece = sleeve_find_piece(kind, named_params[i].piece);
+    if (!piece || sleeve_find_param(piece, named_params[i].name) != named_params[i].index)
+      failed = "a named index is not its parameter's";
+    if (failed)
+      snprintf(detail, sizeof detail, "%s %s: %s", named_params[i].piece, named_params[i].name,
+               failed);
+  }
+  for (kind = SLEEVE_COMPOSE; kind <= SLEEVE_FINISH && !failed; kind++) {
+    const sleeve_piece *list = sleeve_pieces(kind, &n);
+    for (k = 0; k < n && !failed; k++) {
+      const sleeve_piece *piece = &list[k];
+      sleeve_params low, high, lo, hi;
+      int count = 0, j;
+      uint64_t seed;
+      for (j = 0; j < (int)(sizeof named_params / sizeof named_params[0]); j++)
+        count += strcmp(named_params[j].piece, piece->name) == 0;
+      if (count != piece->param_count || piece->param_count > SLEEVE_MAX_PARAMS)
+        failed = "its named indices are not its parameters";
+      for (j = 0; j < piece->param_count && !failed; j++)
+        if (piece->defaults->v[j] != piece->params[j].value) failed = "a default is not its own";
+      memset(&low, 0, sizeof low);
+      memset(&high, 0, sizeof high);
+      for (j = 0; j < piece->param_count; j++) {
+        low.v[j] = INT32_MIN;
+        high.v[j] = INT32_MAX;
+        lo.v[j] = piece->params[j].lo;
+        hi.v[j] = piece->params[j].hi;
+      }
+      for (seed = 0; seed < 50 && !failed; seed++) {
+        sleeve_builder b[2];
+        sleeve_cover c[2];
+        run_piece(piece, &low, seed, &b[0], &c[0]);
+        run_piece(piece, &lo, seed, &b[1], &c[1]);
+        if (memcmp(b, b + 1, sizeof b[0]) || memcmp(c, c + 1, sizeof c[0]))
+          failed = "INT32_MIN for every parameter draws apart from each one's lowest";
+        run_piece(piece, &high, seed, &b[0], &c[0]);
+        run_piece(piece, &hi, seed, &b[1], &c[1]);
+        if (!failed && (memcmp(b, b + 1, sizeof b[0]) || memcmp(c, c + 1, sizeof c[0])))
+          failed = "INT32_MAX for every parameter draws apart from each one's highest";
+      }
+      if (failed) snprintf(detail, sizeof detail, "%s: %s", piece->name, failed);
+      pieces++;
+    }
+  }
+  if (!failed)
+    snprintf(detail, sizeof detail, "%d named indices are sleeve_find_param's and %d pieces' "
+             "defaults their own; each piece run by hand with every parameter at INT32_MIN or "
+             "INT32_MAX draws as at its lowest or highest, over 50 seeds",
+             (int)(sizeof named_params / sizeof named_params[0]), pieces);
+  report("parameters", !failed, detail);
+}
+
 /* ---- Style checks and fingerprints ---- */
 
 static sleeve_mood_def test_mood;
 static sleeve_style_mood test_moods[2];
-static sleeve_horizon_params test_horizon;
+static sleeve_params test_horizon;
 static sleeve_style_part test_parts[2];
 static sleeve_style_part test_finishers[4];
 static sleeve_style_part test_hooks[1];
@@ -1444,15 +1584,14 @@ static sleeve_style test_style;
 
 /* A valid style using every part, rebuilt before each change a check makes to it. */
 static sleeve_style *fresh_style(void) {
-  static const sleeve_tint_params warm = {0xf0d0a0, 200};
+  static const sleeve_params warm = {{0xf0d0a0, 200}};
   test_mood = *sleeve_find_mood("sea");
   test_mood.name = "test";
   test_moods[0].mood = &test_mood, test_moods[0].weight = 2, test_moods[0].composition_weights = 0;
   test_moods[1].mood = sleeve_find_mood("ember"), test_moods[1].weight = 1;
   test_row[0] = 1, test_row[1] = 0;
   test_moods[1].composition_weights = test_row;
-  test_horizon =
-      *(const sleeve_horizon_params *)sleeve_find_piece(SLEEVE_COMPOSE, "horizon")->defaults;
+  test_horizon = *sleeve_find_piece(SLEEVE_COMPOSE, "horizon")->defaults;
   memset(test_parts, 0, sizeof test_parts);
   test_parts[0].name = "horizon", test_parts[0].run = sleeve_compose_horizon;
   test_parts[0].params = &test_horizon, test_parts[0].weight = 3;
@@ -1505,8 +1644,8 @@ static void check_style_check(void) {
     case 3: test_mood.roles[SLEEVE_ACCENT].chroma_hi = 10; break;
     case 4: test_mood.exact[SLEEVE_DEEP].a = 7; break;
     case 5: test_parts[0].weight = test_parts[1].weight = 0; break;
-    case 6: test_horizon.sun = 101; break;
-    case 7: test_horizon.sun_min = 1600; break;
+    case 6: test_horizon.v[SLEEVE_HORIZON_SUN] = 101; break;
+    case 7: test_horizon.v[SLEEVE_HORIZON_SUN_MIN] = 1600; break;
     case 8: test_parts[1].run = 0; break;
     case 9: test_parts[1].name = 0; break;
     case 10: test_finishers[0].layers = 1; break;
@@ -1540,7 +1679,7 @@ static void check_style_check(void) {
   if (sleeve_style_check(&empty, reason, sizeof reason) == 0) accepted++;
   else if (ok) snprintf(detail, sizeof detail, "refused the empty style: %s", reason), ok = 0;
   fresh_style();
-  test_horizon.sun = 101;
+  test_horizon.v[SLEEVE_HORIZON_SUN] = 101;
   if (sleeve_style_check(&test_style, tiny, sizeof tiny) == 0 || strlen(tiny) != sizeof tiny - 1) {
     if (ok) snprintf(detail, sizeof detail, "a reason cut to a small capacity is not terminated");
     ok = 0;
@@ -1560,13 +1699,13 @@ static void check_style_hash(void) {
     "the layers a finisher keeps", "an added finisher", "a palette hook's parameter",
     "a code hook's name", "a code hook's version", "the order of compositions",
   };
-  static const sleeve_frame_params thin = {SLEEVE_PALE, 255, 300};
-  static const sleeve_tint_params cool = {0xa0c0f0, 200};
+  static const sleeve_params thin = {{SLEEVE_PALE, 255, 300}};
+  static const sleeve_params cool = {{0xa0c0f0, 200}};
   const int n = (int)(sizeof changes / sizeof changes[0]);
   sleeve_style_mood moods[SLEEVE_MOODS];
   sleeve_style_part parts[SLEEVE_COMPOSITIONS], swapped[2];
   sleeve_style declared;
-  sleeve_horizon_params defaults;
+  sleeve_params defaults;
   uint64_t base;
   char detail[512];
   const char *failed = 0, *unchanged = 0;
@@ -1575,7 +1714,7 @@ static void check_style_hash(void) {
   if (sleeve_style_hash(&declared) != sleeve_style_hash(&sleeve_default_style))
     failed = "the default style declared from names fingerprints apart from it";
   base = sleeve_style_hash(fresh_style());
-  defaults = *(const sleeve_horizon_params *)sleeve_find_piece(SLEEVE_COMPOSE, "horizon")->defaults;
+  defaults = *sleeve_find_piece(SLEEVE_COMPOSE, "horizon")->defaults;
   test_parts[0].params = &defaults;
   if (!failed && sleeve_style_hash(&test_style) != base)
     failed = "default parameters written out fingerprint apart from the same as NULL";
@@ -1595,7 +1734,7 @@ static void check_style_hash(void) {
     case 2: test_mood.exact[SLEEVE_ACCENT] = hex(0xfca311); break;
     case 3: test_row[1] = 1; break;
     case 4: test_parts[0].weight = 4; break;
-    case 5: test_horizon.night = 41; break;
+    case 5: test_horizon.v[SLEEVE_HORIZON_NIGHT] = 41; break;
     case 6: test_finishers[0].params = &thin; break;
     case 7: test_finishers[0].layers = 3; break;
     case 8: test_style.finisher_count = 2; break;
@@ -1832,6 +1971,7 @@ static const struct {
   {"extremes", check_extremes, 0}, {"default-style", check_default_style, 0},
   {"style-shares", check_style_shares, 0}, {"style-hooks", check_style_hooks, 0},
   {"builder", check_builder, 0}, {"containment", check_containment, 0},
+  {"parameters", check_parameters, 0},
   {"style-check", check_style_check, 0}, {"style-hash", check_style_hash, 0},
   {"given-palette", check_given_palette, 0},
   {"style-determinism", check_style_determinism, 1},

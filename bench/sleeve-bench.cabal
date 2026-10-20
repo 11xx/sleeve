@@ -1,0 +1,35 @@
+cabal-version: 3.0
+name:          sleeve-bench
+version:       0
+synopsis:      sleeve's generator and rasterizer in Haskell beside the C, compared and timed
+license:       Unlicense
+build-type:    Simple
+tested-with:   GHC == 9.12.2
+
+common language
+  default-language:   GHC2024
+  default-extensions: DuplicateRecordFields NoFieldSelectors OverloadedRecordDot
+  ghc-options:        -Wall -Werror -Wcompat -Widentities -Wincomplete-uni-patterns
+                      -Wincomplete-record-updates -Wredundant-constraints
+
+-- The Haskell port reads and writes unboxed arrays with boot packages only.
+library
+  import:          language
+  hs-source-dirs:  src
+  exposed-modules: Sleeve.Colour
+                   Sleeve.Description
+                   Sleeve.Ffi
+                   Sleeve.Generate
+                   Sleeve.Raster
+  include-dirs:    cbits
+  c-sources:       cbits/bench.c
+  cc-options:      -std=c99 -O2 -Wall -Wextra
+  ghc-options:     -O2
+  build-depends:   base ^>=4.21, array
+
+executable sleeve-bench
+  import:         language
+  hs-source-dirs: app
+  main-is:        Main.hs
+  ghc-options:    -O2 -rtsopts
+  build-depends:  base ^>=4.21, sleeve-bench

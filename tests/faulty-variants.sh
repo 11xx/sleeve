@@ -59,8 +59,8 @@ variant() {
 }
 
 variant mood-weights descriptions \
-  'SLEEVE_MOODS] = {12, 12, 11, 9, 8, 9, 10, 10, 10, 9};' \
-  'SLEEVE_MOODS] = {12, 12, 11, 9, 8, 9, 10, 10, 9, 10};'
+  '{&sleeve_moods[SLEEVE_DUOTONE], 10, 0}, {&sleeve_moods[SLEEVE_EMBER], 9, 0},' \
+  '{&sleeve_moods[SLEEVE_DUOTONE], 9, 0}, {&sleeve_moods[SLEEVE_EMBER], 10, 0},'
 variant squared-interpolation rasters \
   'out[ch] = g->c[i][ch] + (g->c[i + 1][ch] - g->c[i][ch]) * f;' \
   'out[ch] = g->c[i][ch] + (g->c[i + 1][ch] - g->c[i][ch]) * f * f;'
@@ -75,11 +75,13 @@ variant circles-for-ellipses svg \
   'if (l->ex != l->ey) {' \
   'if (0) {'
 variant unweighted-compositions variety \
-  'sleeve__composition_weights[cover->mood == SLEEVE_NEON], SLEEVE_COMPOSITIONS);' \
-  'sleeve__composition_weights[0] + 0 * cover->mood, SLEEVE_COMPOSITIONS / 2);'
+  'composition = row ? sleeve__pick(&b.rng, row, s.composition_count)
+              : sleeve__pick_part(&b.rng, s.compositions, s.composition_count);' \
+  'composition = row ? sleeve__below(&b.rng, s.composition_count)
+              : sleeve__below(&b.rng, s.composition_count);'
 variant unmixed-seeds variety \
-  'g.rng.state = sleeve__mix(seed ^ 0x736c65657665ull);' \
-  'g.rng.state = seed;'
+  'b.rng.state = sleeve__mix(seed ^ 0x736c65657665ull);' \
+  'b.rng.state = seed;'
 variant translucent-base api \
   'if (cover->layer_count > SLEEVE_MAX_LAYERS || cover->base.a != 255) return -1;' \
   'if (cover->layer_count > SLEEVE_MAX_LAYERS) return -1;'

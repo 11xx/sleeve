@@ -675,15 +675,17 @@ static void check_variety(void) {
   double closest = 1e9;
   char detail[1024], line[8192];
   uint8_t a[THUMB * THUMB * 4], b[THUMB * THUMB * 4];
-  for (i = 0; i < SLEEVE_MOODS; i++) total_m += sleeve__mood_weights[i];
+  const sleeve_style *style = &sleeve_default_style;
+  for (i = 0; i < SLEEVE_MOODS; i++) total_m += style->moods[i].weight;
   /* a composition's share: its weight's share under each mood, by the mood's share */
   for (i = 0; i < SLEEVE_COMPOSITIONS; i++) share_c[i] = 0;
   for (k = 0; k < SLEEVE_MOODS; k++) {
-    const uint8_t *w = sleeve__composition_weights[k == SLEEVE_NEON];
+    const uint16_t *row = style->moods[k].composition_weights;
     long sum = 0;
-    for (i = 0; i < SLEEVE_COMPOSITIONS; i++) sum += w[i];
+    for (i = 0; i < SLEEVE_COMPOSITIONS; i++) sum += row ? row[i] : style->compositions[i].weight;
     for (i = 0; i < SLEEVE_COMPOSITIONS; i++)
-      share_c[i] += (double)sleeve__mood_weights[k] / total_m * w[i] / sum;
+      share_c[i] += (double)style->moods[k].weight / total_m *
+                    (row ? row[i] : style->compositions[i].weight) / sum;
   }
   for (i = 0; i < VARIETY_SEEDS; i++) {
     sleeve_cover c;
@@ -724,7 +726,7 @@ static void check_variety(void) {
     if (dev > worst_dev_c) worst_dev_c = dev;
   }
   for (i = 0; i < SLEEVE_MOODS; i++) {
-    double expected = (double)VARIETY_SEEDS * sleeve__mood_weights[i] / total_m;
+    double expected = (double)VARIETY_SEEDS * style->moods[i].weight / total_m;
     int dev = (int)(100.0 * fabs(mood[i] - expected) / expected + 0.5);
     if (dev > worst_dev_m) worst_dev_m = dev;
   }

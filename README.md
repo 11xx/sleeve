@@ -32,7 +32,11 @@ sleeve_render(&cover, 256, 256, pixels, 256 * 4);
 | `sleeve_svg(&cover, w, h, out, capacity)` | The cover as an SVG document; returns its length as `snprintf` does, so a capacity of 0 sizes the buffer. |
 | `sleeve_png_bound(w, h)`, `sleeve_png(rgba, w, h, stride, out, capacity)` | Encodes pixels as an 8-bit RGB PNG into the caller's buffer; the bound is always enough. |
 | `sleeve_describe(&cover, out, capacity)` | The description as text, one line per layer. |
-| `sleeve_composition_name(i)`, `sleeve_mood_name(i)` | Names for a generated cover's composition and mood. |
+| `sleeve_composition_name(i)`, `sleeve_mood_name(i)` | The default style's names for a generated cover's composition and mood. |
+| `sleeve_generate_styled(seed, &style, &cover)` | The cover for a seed in a style; see [Styles](#styles). |
+| `sleeve_generate_with_palette(seed, &style, colours, n, &cover)` | The same, drawing from 1 to 16 given colours in place of the style's moods. |
+| `sleeve_style_check(&style, reason, capacity)`, `sleeve_style_hash(&style)` | Whether generation accepts a style, and why not; a style's fingerprint for keying caches. |
+| `sleeve_describe_styled(&cover, &style, out, capacity)`, `sleeve_style_composition_name(&style, i)`, `sleeve_style_mood_name(&style, i)` | Names and text taken from the style a cover was drawn in. |
 | `sleeve_write_png(path, &cover, w, h)`, `sleeve_write_svg(...)` | Render and write a file; left out when `SLEEVE_NO_STDIO` is defined, which also drops `<stdio.h>` and `<stdlib.h>`. |
 
 ## The description
@@ -64,7 +68,7 @@ linear 141 : #efe2cc00@0 #efe2cc3c@14065
 
 ### What the generator draws
 
-A seed picks one of ten *moods*, each a palette recipe in OKLCH (dusk, sea, earth, warm and cool
+In the default style, a seed picks one of ten *moods*, each a palette recipe in OKLCH (dusk, sea, earth, warm and cool
 paper, neon, mist, garden, duotone, ember), and draws five colours from it: deep, mid, pale and two
 accents, each pulled into the sRGB gamut by lowering its chroma. It then picks one of twelve
 *compositions* and draws its parameters: a horizon with a sun and lines in the ground; a glow
@@ -73,6 +77,206 @@ repeating stripes; proportional bands or a translucent sheen; a hard diagonal sp
 bars; a constellation of dots; repeating grooves from an off-centre point; two large orbs; a
 checkerboard under a disc or a band. The neon mood keeps to the compositions where its bright
 accents stay small marks on a dark ground.
+
+## Styles
+
+A style shapes what generation draws. `sleeve_generate(seed, &cover)` draws in
+`sleeve_default_style`, the ten moods and twelve compositions above; any other style goes to
+`sleeve_generate_styled(seed, &style, &cover)`. A style is plain data the caller owns: arrays of
+parts and their counts, with optional function pointers for C callers who add pieces of their
+own. It allocates nothing and holds no state, so one style serves any number of threads.
+
+| Part | What it holds | When its count is 0 |
+| --- | --- | --- |
+| `moods` | each a mood definition (`sleeve_mood_def`), a weight, and optionally a weight for each of the style's compositions that replaces theirs under this mood | the default moods |
+| `compositions` | each a name, a function (`run`), its parameters, and a weight | the default compositions |
+| `palette_hooks` | functions run in order on the five colours before composing | none |
+| `finishers` | functions run in order after composing, each with the layers it keeps free | none |
+
+A generated cover's `composition` and `mood` index the style's tables;
+`sleeve_style_composition_name` and `sleeve_style_mood_name` give their names, and
+`sleeve_describe_styled` writes them into the text form. The default moods' composition
+weights, such as neon's, index the default compositions, so they apply only when the
+compositions are the default ones as well.
+
+```c
+static const sleeve_split_params steep = {30, 150, 20, 80, 1200, 2200};
+static const sleeve_style_part parts[] = {
+  {"orbs", sleeve_compose_orbs, 0, 3, 0, 0},                     /* NULL: the defaults */
+  {"split", sleeve_compose_split, &steep, 2, 0, 0},
+};
+static const sleeve_style_part frame[] = {
+  {"frame", sleeve_finish_frame, 0, 0, 2, 0},                    /* keeps 2 layers free */
+};
+static const sleeve_style framed = {"framed", 0, 0, parts, 2, 0, 0, frame, 1};
+
+char reason[200];
+if (sleeve_style_check(&framed, reason, sizeof reason) != 0) fprintf(stderr, "%s\n", reason);
+sleeve_generate_styled(seed, &framed, &cover);
+```
+
+### Moods
+
+A mood is a hue range and a recipe for each of the five roles, deep, mid, pale, accent and
+second accent (`enum sleeve_role`): a hue offset from the mood's hue (−360 to 360 degrees) and an
+OKLCH lightness (0 to 1000) and chroma (0 to 400), both in thousandths, each a range from which a
+value is drawn. A range of one value pins it; a role whose `exact` colour has alpha 255 is that
+sRGB colour as it is, which is how a style holds a brand's colours. The built-in moods are
+`sleeve_moods`, found by name with `sleeve_find_mood`: `dusk`, `sea`, `earth`, `paper-warm`,
+`paper-cool`, `neon`, `mist`, `garden`, `duotone`, `ember`.
+
+### Built-in pieces
+
+Every built-in composition, palette hook and finisher has a stable name, a function, and a
+parameter struct of `int32_t` fields only (`sleeve_horizon_params` and so on, declared in
+`sleeve.h`). `sleeve_pieces(kind, &count)` lists a kind's pieces and `sleeve_find_piece(kind,
+name)` finds one; each piece lists its parameters in field order with their ranges and
+defaults, and `sleeve_find_param` finds one by name. A skin compiler therefore resolves a
+declared style from names and numbers alone: it looks a piece up, starts from its `defaults`,
+sets the fields it names, and lets `sleeve_style_check` judge the result. A parameter with
+`at_most` set must not exceed the parameter it names, as each `_min` its `_max`. `NULL`
+parameters are the defaults.
+
+Below, a bare number is a percentage chance (0 to 100); other ranges follow in brackets. Lengths
+are in side units, colours `0xRRGGBB`, amounts and lightness in thousandths, alpha 0 to 255,
+roles 0 to 4 in the order above.
+
+| Kind | Name | Parameters and defaults |
+| --- | --- | --- |
+| composition | `horizon` | `night` 40, `level` 60, `tilt` 8 (0–30), `horizon_min` 420 (200–800), `horizon_max` 650 (200–800), `sun` 85, `setting` 30, `sun_min` 700 (300–2500), `sun_max` 1500 (300–2500), `band` 55, `lines` 35 |
+| composition | `glow` | `dusk` 60, `radius_min` 4500 (2000–9000), `radius_max` 6500 (2000–9000), `alpha_min` 170 (0–255), `alpha_max` 220 (0–255), `sun` 55 |
+| composition | `disc` | `record` 35, `centred` 60, `label_min` 900 (300–2500), `label_max` 1400 (300–2500), `rings_min` 2 (1–3), `rings_max` 3 (1–3), `halo` 40, `wash` 40 |
+| composition | `pair` | `dark` 60, `spread_min` 1800 (1000–3000), `spread_max` 2300 (1000–3000), `hub_min` 800 (300–1800), `hub_max` 1300 (300–1800), `strip` 50, `spots` 60 |
+| composition | `stripes` | `solid` 65, `colours_min` 2 (2–4), `colours_max` 4 (2–4), `wobble` 4 (0–20), `disc` 40 |
+| composition | `bands` | `sheen` 25, `bands_min` 3 (2–4), `bands_max` 4 (2–4), `thin` 40, `tilt` 30, `disc` 30 |
+| composition | `split` | `angle_min` 20 (0–180), `angle_max` 160 (0–180), `cross` 45, `disc` 55, `disc_min` 1000 (300–3500), `disc_max` 2200 (300–3500) |
+| composition | `bars` | `vertical` 70, `bars_min` 2 (1–6), `bars_max` 3 (1–6), `tilt` 25 |
+| composition | `constellation` | `stars_min` 4 (1–9), `stars_max` 9 (1–9), `moon` 35, `star_min` 200 (100–800), `star_max` 450 (100–800) |
+| composition | `grooves` | `lines` 25, `two_tone` 50, `disc` 20 |
+| composition | `orbs` | `wash` 50, `edge` 50, `oval` 40 |
+| composition | `checks` | `tile_min` 400 (150–2500), `tile_max` 1000 (150–2500), `dark` 50, `disc` 60 |
+| palette hook | `tint` | `colour` #f2e3c6, `amount` 250 (0–1000): every colour mixed toward one |
+| palette hook | `chroma` | `scale` 500 (0–2000): every colour's chroma scaled, in thousandths of itself |
+| palette hook | `monochrome` | `hue` −1 (−1–359): every colour turned to one hue, −1 for the palette's most chromatic colour's |
+| palette hook | `lightness` | `lo` 150, `hi` 900 (0–1000): lightness 0 to 1000 mapped onto `lo` to `hi` |
+| palette hook | `duotone` | `dark` #1d2b4f, `light` #f3e8d2: the darkest colour becomes the dark ink, the lightest the light one, the rest fall between by lightness |
+| finisher, 1 layer | `vignette` | `role` 0, `alpha` 110, `inner` 4500 (0–14000), `outer` 7500 (0–14000): the edges toward a colour, from `inner` out from the centre to full at `outer` |
+| finisher, 1 layer | `wash` | `role` 2, `alpha` 40: a flat translucent colour |
+| finisher, 2 layers | `frame` | `role` 2, `alpha` 255, `width` 600 (50–2500): a border |
+| finisher, 1 layer | `lines` | `role` 0, `alpha` 36, `angle` 45 (0–359), `pitch` 160 (40–2000), `width` 60 (10–2000, at most `pitch`): fine repeating lines |
+
+The compositions' chances are those of the descriptions in [What the generator
+draws](#what-the-generator-draws): `night` is the share of horizons at night, `record` of discs
+drawn as records, and so on; `sleeve.h` comments each field.
+
+### Checking a style
+
+`sleeve_style_check(&style, reason, capacity)` returns 0 for a style generation accepts, or −1
+with the first problem as text, such as `compositions[1] (split): disc_min 4000 is outside 300 to
+3500` or `moods[0] (brand): mid light_hi 400 is outside 420 to 1000`. It refuses counts beyond
+`SLEEVE_STYLE_MAX_MOODS` and `SLEEVE_STYLE_MAX_COMPOSITIONS` (32) or `SLEEVE_STYLE_MAX_HOOKS` (8),
+missing names or functions, ranges out of bounds or reversed, moods' or compositions' weights
+summing to 0, a built-in piece's parameters out of range, a built-in of one kind used as
+another, a finisher keeping fewer layers free than its piece adds, and finishers keeping more
+than `SLEEVE_STYLE_MAX_RESERVED` (6) layers free in all. Generation expects a style that passes;
+a code hook's parameters are its owner's to check.
+
+### Writing a composition on the builder
+
+A composition, palette hook or finisher is a `sleeve_hook`: `void (*)(sleeve_builder *b, const
+void *params)`. It reads `b->palette`, the five colours, and `b->cover`; draws every choice from
+the builder (`sleeve_below`, `sleeve_range`, `sleeve_chance`, `sleeve_pick`); and paints with
+`sleeve_add_linear`, `sleeve_add_radial`, `sleeve_add_layer`, `sleeve_add_disc`,
+`sleeve_add_glow`, `sleeve_add_stop`, `sleeve_add_band` and `sleeve_along`, mixing colours with
+`sleeve_alpha`, `sleeve_mix`, `sleeve_oklch` and `sleeve_to_oklch`. It can call any built-in
+piece's function first, a built-in horizon and then its own overlay:
+
+```c
+/* A horizon with a ring hung over it. */
+static void ringed_horizon(sleeve_builder *b, const void *params) {
+  sleeve_layer *ring;
+  int32_t r = sleeve_range(b, 1200, 2000);
+  (void)params;
+  sleeve_compose_horizon(b, NULL);
+  if (sleeve_layers_left(b) == 0) return;
+  ring = sleeve_add_radial(b, 5000, sleeve_range(b, 2500, 4000));
+  sleeve_add_stop(ring, r, sleeve_alpha(b->palette[SLEEVE_PALE], 0));
+  sleeve_add_band(ring, r, r + 150, b->palette[SLEEVE_PALE]);
+  sleeve_add_stop(ring, r + 150, sleeve_alpha(b->palette[SLEEVE_PALE], 0));
+}
+
+static const sleeve_style_part parts[] = {{"ringed-horizon", ringed_horizon, 0, 1, 0, 1}};
+```
+
+Whatever a hook does through the builder, the cover stays within `SLEEVE_MAX_LAYERS` and
+`SLEEVE_MAX_STOPS` and passes `sleeve_check`:
+
+- a layer added beyond the hook's limit is a spare that is never part of the cover, so a hook
+  need not check, and `sleeve_layers_left` says how many more it may add;
+- a composition's limit leaves free the layers the style's finishers keep, and finishers then
+  share whatever the composition left, up to `SLEEVE_MAX_LAYERS`; palette hooks may add none;
+- a stop beyond `SLEEVE_MAX_STOPS` is dropped, and one before the layer's last stop moves up to
+  it;
+- after a code hook has run, layers `sleeve_check` would refuse are dropped, the base and the
+  palette are made opaque, and the layer count is kept within bounds.
+
+### A palette for one call
+
+```c
+sleeve_colour album[3] = {{0x26, 0x46, 0x53, 255}, {0xe9, 0xc4, 0x6a, 255}, {0xe7, 0x6f, 0x51, 255}};
+sleeve_generate_with_palette(seed, &sleeve_default_style, album, 3, &cover);
+```
+
+An app with an album's own colours passes 1 to `SLEEVE_MAX_GIVEN` (16) of them in place of the
+style's moods; composition choice still follows the style, by the compositions' own weights,
+the palette hooks do not run, and the cover's mood is `SLEEVE_NO_MOOD`, named `given`. The
+colours are assigned to the five roles by their OKLCH lightness and chroma, and the cover's
+`palette` holds them as assigned, so a caller tinting from a cover gets the album's colours back.
+`sleeve_assign_palette` returns the same five roles without generating a cover.
+
+- The darkest colour is deep, if its lightness is at most 450.
+- The lightest of the rest is pale, if its lightness is at least 750.
+- The most chromatic of the rest is the accent, if its chroma is at least 50.
+- The one of the rest nearest in lightness to the middle of deep and pale is mid.
+- The most chromatic left is the second accent, if its chroma is at least 50; colours beyond
+  these go unused.
+
+A role left empty is derived in OKLCH from the colours given, in the order deep, pale, mid,
+accent, second accent. The *key* is the most chromatic colour given.
+
+| Role | Lightness | Hue | Chroma |
+| --- | --- | --- | --- |
+| deep | 240 | the key's | the key's, at most 80 |
+| pale | 930 | the key's | a third of the key's, at most 40 |
+| mid | halfway between deep and pale | the key's | three quarters of the key's |
+| accent | 720 | the key's | the key's |
+| second accent | the accent's, moved 160 toward the middle of deep and pale | the accent's | four fifths of the accent's |
+
+So one colour takes the role its lightness and chroma give it and the other four are its tones:
+a saturated red is the accent, under a dark red, a pale pink, a muted red mid and a lighter red.
+Two colours such as black and white are deep and pale, with greys between; a navy and an orange
+are deep and accent, with an orange-tinted pale and mid.
+
+### Fingerprints and caches
+
+`sleeve_style_hash(&style)` is a 64-bit fingerprint of everything in a style that decides its
+covers: the moods' recipes, exact colours and weights, the compositions' weights, the moods'
+composition weights where they apply, each built-in piece by name with its parameters (`NULL`
+hashing as the defaults), the layers finishers keep free, and `SLEEVE_GENERATOR`. Equal style
+data hashes equal on every platform and in every build; the names of the style and of its moods
+do not count. A function pointer is not stable from build to build, so a code hook counts by its
+part's `name` and `version`, which its owner changes whenever the hook or its parameters would
+draw differently. An app caching covers keys them on the seed, the style's fingerprint, the
+palette given for the call if any, and the size.
+
+### Determinism per style
+
+The same seed, the same style data and the same given palette give the same description, byte
+for byte, on every platform, provided every code hook draws its choices only from the builder's
+generator and computes in integers. The built-in pieces do, and with the palette assignment and
+the colour conversions they use only integer arithmetic and the lookup tables. `SLEEVE_GENERATOR`
+covers the default style and every built-in piece; a style made of built-in pieces draws the
+same covers while it stays the same, and its fingerprint changes with it.
 
 ## Determinism
 

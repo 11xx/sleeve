@@ -559,12 +559,16 @@ static void sleeve__glow_cover(sleeve__gen *g) {
   sleeve__stop(wash, 0, g->p[dusk ? SLEEVE__DEEP : SLEEVE__MID]);
   if (dusk) sleeve__stop(wash, sleeve__range(r, 4500, 6500), g->p[SLEEVE__MID]);
   sleeve__stop(wash, SLEEVE_UNIT, g->p[dusk ? SLEEVE__ACCENT2 : SLEEVE__PALE]);
-  sleeve__glow(g, gx, SLEEVE_UNIT + sleeve__range(r, 0, 800), SLEEVE_UNIT,
-               sleeve__range(r, 5500, 8000), radius, radius / 3,
-               g->p[SLEEVE__PALE], sleeve__range(r, 170, 220));
-  if (sleeve__chance(r, 55))
-    sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 1800, 4000),
-                 sleeve__range(r, 700, 1300), g->p[SLEEVE__ACCENT]);
+  {
+    int32_t gy = SLEEVE_UNIT + sleeve__range(r, 0, 800), ey = sleeve__range(r, 5500, 8000);
+    int32_t alpha = sleeve__range(r, 170, 220);
+    sleeve__glow(g, gx, gy, SLEEVE_UNIT, ey, radius, radius / 3, g->p[SLEEVE__PALE], alpha);
+  }
+  if (sleeve__chance(r, 55)) {
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 1800, 4000);
+    int32_t size = sleeve__range(r, 700, 1300);
+    sleeve__disc(g, x, y, size, g->p[SLEEVE__ACCENT]);
+  }
 }
 
 /* Concentric rings on a ground, or a record with grooves and a label, under a faint wash. */
@@ -656,7 +660,8 @@ static void sleeve__pair(sleeve__gen *g) {
 static void sleeve__stripes(sleeve__gen *g) {
   sleeve__rng *r = &g->rng;
   static const int16_t angles[10] = {0, 20, 45, 65, 90, 105, 115, 135, 160, 120};
-  int32_t angle = angles[sleeve__below(r, 10)] + sleeve__range(r, -4, 4);
+  int32_t angle = angles[sleeve__below(r, 10)], wobble = sleeve__range(r, -4, 4);
+  angle += wobble;
   if (sleeve__chance(r, 65)) {
     sleeve_layer *s = sleeve__linear(g, angle);
     static const int order[5] = {SLEEVE__DEEP, SLEEVE__MID, SLEEVE__PALE, SLEEVE__ACCENT,
@@ -686,9 +691,11 @@ static void sleeve__stripes(sleeve__gen *g) {
     ink = sleeve__alpha(ink, sleeve__range(r, 60, 120));
     sleeve__band(lines, 0, pitch - w, sleeve__alpha(ink, 0));
     sleeve__band(lines, pitch - w, pitch, ink);
-    if (sleeve__chance(r, 40))
-      sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 2500, 7500),
-                   sleeve__range(r, 1000, 1800), g->p[SLEEVE__ACCENT]);
+    if (sleeve__chance(r, 40)) {
+      int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+      int32_t size = sleeve__range(r, 1000, 1800);
+      sleeve__disc(g, x, y, size, g->p[SLEEVE__ACCENT]);
+    }
   }
 }
 
@@ -737,16 +744,17 @@ static void sleeve__bands(sleeve__gen *g) {
   g->cover->base = b->stops[0].colour;
   if (sleeve__chance(r, 30)) {
     int32_t dr = sleeve__range(r, 900, 1600);
-    sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 2500, 7500), dr,
-                 g->p[sleeve__chance(r, 50) ? SLEEVE__PALE : SLEEVE__ACCENT]);
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+    int role = sleeve__chance(r, 50) ? SLEEVE__PALE : SLEEVE__ACCENT;
+    sleeve__disc(g, x, y, dr, g->p[role]);
   }
 }
 
 /* A hard diagonal split, sometimes crossed by a band, sometimes with a disc. */
 static void sleeve__split(sleeve__gen *g) {
   sleeve__rng *r = &g->rng;
-  int32_t angle = sleeve__range(r, 20, 160) + (sleeve__chance(r, 50) ? 180 : 0);
-  sleeve_layer *s = sleeve__linear(g, angle);
+  int32_t angle = sleeve__range(r, 20, 160), flip = sleeve__chance(r, 50);
+  sleeve_layer *s = sleeve__linear(g, flip ? angle + 180 : angle);
   int32_t at = sleeve__along(s, sleeve__range(r, 380, 620));
   int first = sleeve__chance(r, 50) ? SLEEVE__DEEP : SLEEVE__MID;
   int second = first == SLEEVE__DEEP ? (sleeve__chance(r, 50) ? SLEEVE__PALE : SLEEVE__ACCENT)
@@ -754,7 +762,7 @@ static void sleeve__split(sleeve__gen *g) {
   sleeve__band(s, 0, at, g->p[first]);
   sleeve__band(s, at, sleeve__along(s, 1000), g->p[second]);
   if (sleeve__chance(r, 45)) {
-    sleeve_layer *cross = sleeve__linear(g, angle + sleeve__range(r, 60, 120));
+    sleeve_layer *cross = sleeve__linear(g, s->angle + sleeve__range(r, 60, 120));
     int32_t c = sleeve__along(cross, sleeve__range(r, 350, 650)), w = sleeve__range(r, 500, 1500);
     sleeve_colour band = g->p[SLEEVE__ACCENT2];
     sleeve__stop(cross, c, sleeve__alpha(band, 0));
@@ -763,8 +771,8 @@ static void sleeve__split(sleeve__gen *g) {
   }
   if (sleeve__chance(r, 55)) {
     int32_t dr = sleeve__range(r, 1000, 2200);
-    sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 2500, 7500), dr,
-                 g->p[second == SLEEVE__ACCENT ? SLEEVE__PALE : SLEEVE__ACCENT]);
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+    sleeve__disc(g, x, y, dr, g->p[second == SLEEVE__ACCENT ? SLEEVE__PALE : SLEEVE__ACCENT]);
   }
 }
 
@@ -850,7 +858,8 @@ static void sleeve__grooves(sleeve__gen *g) {
     static const int others[3] = {SLEEVE__MID, SLEEVE__ACCENT, SLEEVE__ACCENT2};
     int32_t w = sleeve__range(r, 350, 900);
     sleeve__band(rings, 0, w, g->p[ground]);
-    sleeve__band(rings, w, w + sleeve__range(r, 150, 450), g->p[others[sleeve__below(r, 3)]]);
+    int32_t w2 = sleeve__range(r, 150, 450), other = others[sleeve__below(r, 3)];
+    sleeve__band(rings, w, w + w2, g->p[other]);
     g->cover->base = g->p[ground];
   } else {
     /* the deep, mid and pale tones of one family, in some order */
@@ -868,8 +877,8 @@ static void sleeve__grooves(sleeve__gen *g) {
   }
   if (sleeve__chance(r, 20)) {
     int32_t dr = sleeve__range(r, 900, 1600);
-    sleeve__disc(g, sleeve__range(r, 2500, 7500), sleeve__range(r, 2500, 7500), dr,
-                 g->p[SLEEVE__ACCENT]);
+    int32_t x = sleeve__range(r, 2500, 7500), y = sleeve__range(r, 2500, 7500);
+    sleeve__disc(g, x, y, dr, g->p[SLEEVE__ACCENT]);
   }
 }
 

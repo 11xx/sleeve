@@ -4,7 +4,7 @@ palette #1b3148 #c25634 #f1ead9 #e8674a #e6b971
 base #1b3148
 linear 60 : #1b3148ff@0 #1b3148ff@6434 #e8674aff@6434 #e8674aff@13660
 linear 155 : #e6b97100@4864 #e6b971ff@4864 #e6b971ff@6362 #e6b97100@6362
-radial 3919 5185 10000 10000 : #f1ead9ff@0 #f1ead9ff@1435 #f1ead900@1435
+radial 5185 3919 10000 10000 : #f1ead9ff@0 #f1ead9ff@1435 #f1ead900@1435
 seed 1
 sleeve 1 orbs sea
 palette #002a36 #3297a4 #c7edec #eecb86 #69c0ac
@@ -17,8 +17,8 @@ sleeve 1 glow garden
 palette #1d432d #7da672 #e9e6bb #c990d2 #f8ce76
 base #1d432d
 linear 180 : #7da672ff@0 #e9e6bbff@10000
-radial 5465 10284 10000 6694 : #e9e6bbca@0 #e9e6bbca@1922 #e9e6bb00@5766
-radial 2868 2560 10000 10000 : #c990d2ff@0 #c990d2ff@923 #c990d200@923
+radial 5465 10503 10000 6694 : #e9e6bbbc@0 #e9e6bbbc@1922 #e9e6bb00@5766
+radial 4358 2560 10000 10000 : #c990d2ff@0 #c990d2ff@744 #c990d200@744
 seed 3
 sleeve 1 constellation earth
 palette #473316 #ae6f4a #f7e2cd #41775a #b05a3e
@@ -117,13 +117,13 @@ sleeve 1 split mist
 palette #3c4652 #86919c #e0e5eb #e6a889 #536f86
 base #3c4652
 linear 61 : #86919cff@0 #86919cff@7844 #e0e5ebff@7844 #e0e5ebff@13594
-radial 7387 5653 10000 10000 : #e6a889ff@0 #e6a889ff@2068 #e6a88900@2068
+radial 5653 7387 10000 10000 : #e6a889ff@0 #e6a889ff@2068 #e6a88900@2068
 seed key:
 sleeve 1 split garden
 palette #1f512e #93aa74 #ebf0ba #d1a4ed #f4cf61
 base #1f512e
 linear 271 : #1f512eff@0 #1f512eff@4924 #ebf0baff@4924 #ebf0baff@10173
-radial 4127 5430 10000 10000 : #d1a4edff@0 #d1a4edff@1961 #d1a4ed00@1961
+radial 5430 4127 10000 10000 : #d1a4edff@0 #d1a4edff@1961 #d1a4ed00@1961
 seed key:Album Title	Artist
 sleeve 1 disc sea
 palette #02353f #3b8b96 #d6ebee #eec79d #73c4b6
@@ -140,4 +140,4 @@ linear 180 : #c45a46ff@0 #f1ecd7ff@4500
 radial 6828 1998 10000 10000 : #e96940ff@0 #e96940ff@1498 #e9694000@1498
 linear 180 : #e2ae7300@4500 #e2ae73ff@4500 #e2ae73ff@4930 #2a2f44ff@4930 #2a2f44ff@10000
 linear 180 : #f1ecd700@5406 #f1ecd78b@5406 #f1ecd78b@5475 #f1ecd700@5475 #f1ecd700@5951 #f1ecd78b@5951 #f1ecd78b@6020 #f1ecd700@6020
-digest of seeds 0 to 19999: e0ad4a9226bedec6
+digest of seeds 0 to 19999: 2aed55a98e8c2567

@@ -285,6 +285,9 @@ part, which the command-line tool and the browser demo offer by name:
 - **gallery**: three compositions, an arch written on the builder as a code hook, and the
   built-in orbs and split retuned, each on a mat from the `frame` finisher.
 
+`results/20261020T2137Z-styles/` holds a contact sheet of each, and of covers drawn from a few
+given palettes.
+
 ### Determinism per style
 
 The same seed, the same style data and the same given palette give the same description, byte

@@ -1,0 +1,7 @@
+pass descriptions: 21 seeds in full and 20000 by digest
+pass rasters: 12 covers at 64 px, one per composition: largest difference 1 (at most 1)
+pass antialiasing: 55 layers alone: largest difference 3 (at most 4), worst mean 0.271 (at most 0.50); 24 whole covers: worst mean 0.288 (at most 0.6), 0.015% of channels off by more than 8 (at most 0.2%), largest 27
+pass png: 40 images decode with stb_image to the pixels encoded; 18.5% of raw size; one byte too little capacity is refused
+pass svg: skipped: no SVG renderer (rsvg-convert, or SLEEVE_SVG_RENDERER)
+pass variety: 20000 seeds: compositions within 3% of their shares and moods within 4% (at most 12%); 0 of 312 runs of 64 neighbouring seeds skewed beyond chance at p = 0.001 (at most 3), the first, a sheet's default seeds, not among them; palettes in 12 of 12 hue sectors (at least 11); 0 duplicate covers (none); 219 neighbours sharing composition and mood (at most 3%); of 2000 neighbouring pairs, 3 differ by under 12 levels a channel (at most 5), the closest by 7.0
+pass api: row ranges equal the whole; refusals; sizing calls; the hash's values

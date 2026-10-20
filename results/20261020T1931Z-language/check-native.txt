@@ -1,0 +1,5 @@
+descriptions: 20005 seeds, 0 differ
+rasters at 64 px: 300 covers, largest difference 0, 0 of 4915200 bytes differ
+rasters at 216 px: 40 covers, largest difference 0, 0 of 7464960 bytes differ
+rasters at 512 px: 8 covers, largest difference 0, 0 of 8388608 bytes differ
+faults: a neighbouring seed's description caught, a raster two levels off in one byte caught

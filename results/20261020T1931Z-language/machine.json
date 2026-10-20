@@ -1,0 +1,20 @@
+{
+  "desktop": {
+    "cpu": "AMD Ryzen 7 5800X3D 8-Core Processor",
+    "threads": 16,
+    "kernel": "7.2.9-zen1-1-zen",
+    "ghc": "9.12.2",
+    "cc": "gcc 16.2.1",
+    "wasm32_wasi_ghc": "9.12.4.20260731",
+    "wasm_cc": "clang 21.1.8 (wasi-sdk, ghc-wasm-meta)",
+    "browser": "Helium 0.19.3.1 (Chromium 155.0.8059.79), headless, cross-origin isolated (timer resolution 5 us)",
+    "load": "1-minute load average 1.5-2.5 around the runs (load.txt)"
+  },
+  "phone": {
+    "device": "Samsung Galaxy Note 10+ (SM-N975F, Exynos 9825), Android 12",
+    "cores": "4 x 1.95 GHz, 2 x 2.4 GHz, 2 x 2.73 GHz; the -big runs are pinned to the two 2.73 GHz cores (taskset c0)",
+    "wamr": "iwasm 2.4.5 with AOT modules from the release wamrc 2.4.5 (--target=aarch64v8 --cpu=cortex-a55)",
+    "ndk": "r30 (30.0.16248370), clang 21, -O2",
+    "power": "Battery Saver off, charging, battery 100%; thermal status 0 before the first run and 1 (light) after (device.jsonl)"
+  }
+}

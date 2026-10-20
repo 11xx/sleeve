@@ -1,0 +1,8 @@
+{"label": "android-wamr-aot-big before", "at": "2026-10-20T19:42:56Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 0}
+{"label": "android-wamr-aot-big after", "at": "2026-10-20T19:44:03Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 1}
+{"label": "android-c-big before", "at": "2026-10-20T19:44:03Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 1}
+{"label": "android-c-big after", "at": "2026-10-20T19:44:19Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 1}
+{"label": "android-wamr-aot before", "at": "2026-10-20T19:44:19Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 1}
+{"label": "android-wamr-aot after", "at": "2026-10-20T19:45:47Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 1}
+{"label": "android-c before", "at": "2026-10-20T19:45:47Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 1}
+{"label": "android-c after", "at": "2026-10-20T19:46:16Z", "battery_saver": false, "battery": 100, "charging": true, "thermal_status": 1}

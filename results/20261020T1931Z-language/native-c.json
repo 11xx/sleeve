@@ -1,0 +1,11 @@
+{
+  "label": "native-c",
+  "seeds": 1000,
+  "first_seed": 0,
+  "warmup": 20,
+  "runs": [
+    {"size": 64, "language": "c", "total_ms": 174.713, "mean_us": 174.713, "median_us": 139.463, "p95_us": 601.593, "p99_us": 717.555, "max_us": 850.088, "c_digest": "942119e7fdc82bcc"},
+    {"size": 216, "language": "c", "total_ms": 1397.377, "mean_us": 1397.377, "median_us": 1249.076, "p95_us": 4064.047, "p99_us": 5122.619, "max_us": 5615.630, "c_digest": "a827c13233e893af"},
+    {"size": 512, "language": "c", "total_ms": 6834.031, "mean_us": 6834.031, "median_us": 6287.044, "p95_us": 14560.661, "p99_us": 19082.097, "max_us": 21618.181, "c_digest": "5292b689928b3f70"}
+  ]
+}

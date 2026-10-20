@@ -1,0 +1,9 @@
+The same contact sheets drawn by the desktop's native build (gcc, x86-64) and by the phone's native
+build (NDK clang, arm64, which fuses multiplies and adds), compared channel by channel:
+
+sheet 96 (160 px covers, seeds 0-95): largest difference 1, 348 of 8,209,344 channels differ
+sheet --size 512 --columns 4 16:      largest difference 1, 66 of 13,079,232 channels differ
+
+The C rasters' digests in native.json, native-c.json, web-helium.json and android-wamr-aot*.json are
+equal size for size: the desktop's native build and WebAssembly, in the browser and under WAMR on
+the phone, write identical bytes. android-c*.json's differ, by the one-level differences above.

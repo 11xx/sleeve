@@ -1,0 +1,11 @@
+{
+  "label": "android-c",
+  "seeds": 1000,
+  "first_seed": 0,
+  "warmup": 20,
+  "runs": [
+    {"size": 64, "language": "c", "total_ms": 607.767, "mean_us": 607.767, "median_us": 476.961, "p95_us": 2007.231, "p99_us": 2461.654, "max_us": 2686.000, "c_digest": "a9839545b64aab73"},
+    {"size": 216, "language": "c", "total_ms": 4390.276, "mean_us": 4390.276, "median_us": 3663.500, "p95_us": 11682.884, "p99_us": 17081.808, "max_us": 19157.846, "c_digest": "974ffa507e5cf0a1"},
+    {"size": 512, "language": "c", "total_ms": 19074.837, "mean_us": 19074.837, "median_us": 17083.923, "p95_us": 42840.538, "p99_us": 55068.692, "max_us": 61158.923, "c_digest": "ce75b80a01bd5bf0"}
+  ]
+}

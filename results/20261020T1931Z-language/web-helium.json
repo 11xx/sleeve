@@ -1,0 +1,124 @@
+{
+  "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+  "cross_origin_isolated": true,
+  "hardware_concurrency": 14,
+  "args": [
+    "bench",
+    "--seeds",
+    "1000",
+    "--label",
+    "helium"
+  ],
+  "exit": 0,
+  "error": null,
+  "stderr": "timing 1000 covers at 64 px\ntiming 1000 covers at 216 px\ntiming 1000 covers at 512 px",
+  "stdout": null,
+  "report": {
+    "label": "helium",
+    "word_bits": 32,
+    "seeds": 1000,
+    "first_seed": 0,
+    "warmup": 20,
+    "runs": [
+      {
+        "size": 64,
+        "language": "haskell",
+        "total_ms": 484,
+        "mean_us": 484,
+        "median_us": 400,
+        "p95_us": 1450,
+        "p99_us": 1780,
+        "max_us": 2100,
+        "alloc_bytes_per_cover": 5555.3,
+        "largest_difference": 0,
+        "c_digest": "942119e7fdc82bcc"
+      },
+      {
+        "size": 64,
+        "language": "c",
+        "total_ms": 217.61,
+        "mean_us": 217.61,
+        "median_us": 175,
+        "p95_us": 725,
+        "p99_us": 850,
+        "max_us": 3395,
+        "alloc_bytes_per_cover": 0,
+        "largest_difference": 0,
+        "c_digest": "942119e7fdc82bcc"
+      },
+      {
+        "size": 216,
+        "language": "haskell",
+        "total_ms": 3740.74,
+        "mean_us": 3740.74,
+        "median_us": 3455,
+        "p95_us": 9265,
+        "p99_us": 12595,
+        "max_us": 13410,
+        "alloc_bytes_per_cover": 5522.5,
+        "largest_difference": 0,
+        "c_digest": "a827c13233e893af"
+      },
+      {
+        "size": 216,
+        "language": "c",
+        "total_ms": 1699.605,
+        "mean_us": 1699.605,
+        "median_us": 1520,
+        "p95_us": 4470,
+        "p99_us": 5830,
+        "max_us": 6275,
+        "alloc_bytes_per_cover": 0,
+        "largest_difference": 0,
+        "c_digest": "a827c13233e893af"
+      },
+      {
+        "size": 512,
+        "language": "haskell",
+        "total_ms": 18429.585,
+        "mean_us": 18429.585,
+        "median_us": 17470,
+        "p95_us": 35595,
+        "p99_us": 46005,
+        "max_us": 50910,
+        "alloc_bytes_per_cover": 5522.5,
+        "largest_difference": 0,
+        "c_digest": "5292b689928b3f70"
+      },
+      {
+        "size": 512,
+        "language": "c",
+        "total_ms": 8347.82,
+        "mean_us": 8347.82,
+        "median_us": 7745,
+        "p95_us": 16140,
+        "p99_us": 20945,
+        "max_us": 23405,
+        "alloc_bytes_per_cover": 0,
+        "largest_difference": 0,
+        "c_digest": "5292b689928b3f70"
+      }
+    ],
+    "ratio_haskell_to_c": [
+      {
+        "size": 64,
+        "total": 2.224,
+        "median": 2.286,
+        "p99": 2.094
+      },
+      {
+        "size": 216,
+        "total": 2.201,
+        "median": 2.273,
+        "p99": 2.16
+      },
+      {
+        "size": 512,
+        "total": 2.208,
+        "median": 2.256,
+        "p99": 2.196
+      }
+    ],
+    "ratio_haskell_to_c_all_sizes": 2.207
+  }
+}

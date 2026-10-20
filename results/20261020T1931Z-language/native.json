@@ -1,0 +1,21 @@
+{
+  "label": "native",
+  "word_bits": 64,
+  "seeds": 1000,
+  "first_seed": 0,
+  "warmup": 20,
+  "runs": [
+    {"size": 64, "language": "haskell", "total_ms": 266.042, "mean_us": 266.042, "median_us": 191.624, "p95_us": 1059.973, "p99_us": 1287.378, "max_us": 1493.671, "alloc_bytes_per_cover": 10335.8, "largest_difference": 0, "c_digest": "942119e7fdc82bcc"},
+    {"size": 64, "language": "c", "total_ms": 173.725, "mean_us": 173.725, "median_us": 137.993, "p95_us": 603.523, "p99_us": 709.845, "max_us": 831.578, "alloc_bytes_per_cover": 0.0, "largest_difference": 0, "c_digest": "942119e7fdc82bcc"},
+    {"size": 216, "language": "haskell", "total_ms": 1819.588, "mean_us": 1819.588, "median_us": 1427.630, "p95_us": 6197.382, "p99_us": 8406.079, "max_us": 10030.483, "alloc_bytes_per_cover": 10335.8, "largest_difference": 0, "c_digest": "a827c13233e893af"},
+    {"size": 216, "language": "c", "total_ms": 1410.728, "mean_us": 1410.728, "median_us": 1256.127, "p95_us": 4083.827, "p99_us": 5078.579, "max_us": 5942.657, "alloc_bytes_per_cover": 0.0, "largest_difference": 0, "c_digest": "a827c13233e893af"},
+    {"size": 512, "language": "haskell", "total_ms": 8291.340, "mean_us": 8291.340, "median_us": 7460.829, "p95_us": 20795.853, "p99_us": 28412.216, "max_us": 31802.827, "alloc_bytes_per_cover": 10335.8, "largest_difference": 0, "c_digest": "5292b689928b3f70"},
+    {"size": 512, "language": "c", "total_ms": 6894.150, "mean_us": 6894.150, "median_us": 6388.726, "p95_us": 14619.502, "p99_us": 19077.357, "max_us": 21856.626, "alloc_bytes_per_cover": 0.0, "largest_difference": 0, "c_digest": "5292b689928b3f70"}
+  ],
+  "ratio_haskell_to_c": [
+    {"size": 64, "total": 1.531, "median": 1.389, "p99": 1.814},
+    {"size": 216, "total": 1.290, "median": 1.137, "p99": 1.655},
+    {"size": 512, "total": 1.203, "median": 1.168, "p99": 1.489}
+  ],
+  "ratio_haskell_to_c_all_sizes": 1.224
+}

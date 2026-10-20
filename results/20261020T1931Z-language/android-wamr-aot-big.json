@@ -1,0 +1,21 @@
+{
+  "label": "android-wamr-aot-big",
+  "word_bits": 32,
+  "seeds": 1000,
+  "first_seed": 0,
+  "warmup": 20,
+  "runs": [
+    {"size": 64, "language": "haskell", "total_ms": 987.353, "mean_us": 987.353, "median_us": 824.385, "p95_us": 2565.692, "p99_us": 3839.654, "max_us": 4796.038, "alloc_bytes_per_cover": 5555.3, "largest_difference": 0, "c_digest": "942119e7fdc82bcc"},
+    {"size": 64, "language": "c", "total_ms": 327.899, "mean_us": 327.899, "median_us": 252.270, "p95_us": 1084.077, "p99_us": 1288.000, "max_us": 1398.116, "alloc_bytes_per_cover": 0.0, "largest_difference": 0, "c_digest": "942119e7fdc82bcc"},
+    {"size": 216, "language": "haskell", "total_ms": 8240.028, "mean_us": 8240.028, "median_us": 7452.308, "p95_us": 18941.000, "p99_us": 26497.000, "max_us": 28980.923, "alloc_bytes_per_cover": 5522.5, "largest_difference": 0, "c_digest": "a827c13233e893af"},
+    {"size": 216, "language": "c", "total_ms": 2651.748, "mean_us": 2651.748, "median_us": 2130.730, "p95_us": 6965.538, "p99_us": 9331.192, "max_us": 10750.808, "alloc_bytes_per_cover": 0.0, "largest_difference": 0, "c_digest": "a827c13233e893af"},
+    {"size": 512, "language": "haskell", "total_ms": 36407.706, "mean_us": 36407.706, "median_us": 33389.384, "p95_us": 66966.846, "p99_us": 95585.346, "max_us": 128811.500, "alloc_bytes_per_cover": 5522.5, "largest_difference": 0, "c_digest": "5292b689928b3f70"},
+    {"size": 512, "language": "c", "total_ms": 13706.804, "mean_us": 13706.804, "median_us": 11953.192, "p95_us": 27615.039, "p99_us": 35908.808, "max_us": 39779.808, "alloc_bytes_per_cover": 0.0, "largest_difference": 0, "c_digest": "5292b689928b3f70"}
+  ],
+  "ratio_haskell_to_c": [
+    {"size": 64, "total": 3.011, "median": 3.268, "p99": 2.981},
+    {"size": 216, "total": 3.107, "median": 3.498, "p99": 2.840},
+    {"size": 512, "total": 2.656, "median": 2.793, "p99": 2.662}
+  ],
+  "ratio_haskell_to_c_all_sizes": 2.735
+}

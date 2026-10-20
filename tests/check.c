@@ -493,11 +493,12 @@ static void check_antialiasing(void) {
 
 static void check_png(void) {
   static const int sizes[][2] = {{1, 1}, {7, 5}, {64, 64}, {217, 217}, {300, 40}};
-  int i, ok = 1, cases = 0;
+  enum { images = 40 };
+  int i, ok = 1, decoded_same = 0, refused = 0;
   size_t total = 0, raw = 0;
   char detail[256];
-  for (i = 0; i < 40; i++) {
-    int w = sizes[i % 5][0], h = sizes[i % 5][1], dw, dh, comp, k;
+  for (i = 0; i < images; i++) {
+    int w = sizes[i % 5][0], h = sizes[i % 5][1], dw, dh, comp, k, same;
     sleeve_cover c;
     uint8_t *pixels, *png, *decoded;
     size_t bound = sleeve_png_bound(w, h), n;
@@ -507,28 +508,28 @@ static void check_png(void) {
     n = sleeve_png(pixels, w, h, (ptrdiff_t)w * 4, png, bound);
     if (n == 0 || n > bound) {
       ok = 0;
+      free(png);
+      free(pixels);
       continue;
     }
-    if (sleeve_png(pixels, w, h, (ptrdiff_t)w * 4, png, n - 1) != 0) ok = 0;
+    if (sleeve_png(pixels, w, h, (ptrdiff_t)w * 4, png, n - 1) == 0) refused++;
+    else ok = 0;
     decoded = stbi_load_from_memory(png, (int)n, &dw, &dh, &comp, 3);
-    if (!decoded || dw != w || dh != h || comp != 3) ok = 0;
-    else
-      for (k = 0; k < w * h; k++)
-        if (memcmp(decoded + k * 3, pixels + k * 4, 3) != 0) {
-          ok = 0;
-          break;
-        }
+    same = decoded && dw == w && dh == h && comp == 3;
+    for (k = 0; same && k < w * h; k++)
+      if (memcmp(decoded + k * 3, pixels + k * 4, 3) != 0) same = 0;
+    if (same) decoded_same++;
+    else ok = 0;
     stbi_image_free(decoded);
     total += n;
     raw += (size_t)w * h * 3;
-    cases++;
     free(png);
     free(pixels);
   }
   snprintf(detail, sizeof detail,
-           "%d images decode with stb_image to the pixels encoded; %.1f%% of raw size; one "
-           "byte too little capacity is refused",
-           cases, 100.0 * total / raw);
+           "%d of %d images decode with stb_image to the pixels encoded, at %.1f%% of raw size; "
+           "%d of %d refuse one byte too little capacity",
+           decoded_same, images, raw > 0 ? 100.0 * total / raw : 0.0, refused, images);
   report("png", ok, detail);
 }
 

@@ -273,6 +273,18 @@ part's `name` and `version`, which its owner changes whenever the hook or its pa
 draw differently. An app caching covers keys them on the seed, the style's fingerprint, the
 palette given for the call if any, and the size.
 
+### Example styles
+
+`tools/styles.h` holds three styles beside the default, each shaping covers through a different
+part, which the command-line tool and the browser demo offer by name:
+
+- **riso**: every palette printed in two inks, a deep blue and a warm paper, by the `duotone`
+  palette hook, under fine diagonal lines from the `lines` finisher;
+- **brand**: one mood whose deep, pale and accent roles are the exact colours of a navy, cream
+  and amber identity, and whose mid and second accent are drawn around them;
+- **gallery**: three compositions, an arch written on the builder as a code hook, and the
+  built-in orbs and split retuned, each on a mat from the `frame` finisher.
+
 ### Determinism per style
 
 The same seed, the same style data and the same given palette give the same description, byte
@@ -325,13 +337,21 @@ make                                   # build/sleeve and build/check
 build/sleeve cover --size 512 --out cover.png key:'Album Title'
 build/sleeve cover --svg --out covers/ 1 2 3
 build/sleeve sheet --size 160 --columns 8 --first 1000 96 sheet.png
-build/sleeve describe 7
+build/sleeve sheet --style gallery 48 gallery.png
+build/sleeve cover --palette '#264653,#e9c46a,#e76f51' --out album.png key:'Album Title'
+build/sleeve describe --style riso 7
 build/sleeve seed key:'Album Title'
+build/sleeve styles
+build/sleeve pieces
 ```
 
 A seed is a decimal number, a `0x` hexadecimal one, or `key:TEXT` for `sleeve_hash` of TEXT's
 bytes. `cover` writes one file to `--out`, or several into the directory it names, each named by
-its seed; `sheet` writes COUNT covers from `--first` on, in a grid, as one PNG.
+its seed; `sheet` writes COUNT covers from `--first` on, in a grid, as one PNG. `cover`, `sheet`
+and `describe` take `--style NAME`, one of the [example styles](#example-styles), and
+`--palette COLOURS`, 1 to 16 colours as `#rrggbb` separated by commas, drawn from in place of
+the style's moods. `styles` lists the styles with their fingerprints, and `pieces` the built-in
+pieces with their parameters' ranges and defaults.
 
 ## The browser demo
 

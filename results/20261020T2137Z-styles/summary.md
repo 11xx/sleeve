@@ -17,8 +17,9 @@ from the command shown.
 ## Given palettes
 
 `sleeve sheet --palette COLOURS --size 128 --columns 8 16 OUT.png`, in the default style.
-Seed for seed, a given palette keeps the composition and changes only the colours. Each
-sheet therefore shows the same sixteen layouts in another album's colours.
+A given palette takes the place of the mood's draws, so a seed's composition and geometry come
+from a different point of its stream: each sheet shows sixteen covers of its own in an album's
+colours, not the default sheet's layouts recoloured.
 
 | Sheet | Given | Roles assigned (deep, mid, pale, accent, accent2) | What it shows |
 | --- | --- | --- | --- |

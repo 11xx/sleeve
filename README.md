@@ -39,6 +39,38 @@ sleeve_render(&cover, 256, 256, pixels, 256 * 4);
 | `sleeve_describe_styled(&cover, &style, out, capacity)`, `sleeve_style_composition_name(&style, i)`, `sleeve_style_mood_name(&style, i)` | Names and text taken from the style a cover was drawn in. |
 | `sleeve_write_png(path, &cover, w, h)`, `sleeve_write_svg(...)` | Render and write a file; left out when `SLEEVE_NO_STDIO` is defined, which also drops `<stdio.h>` and `<stdlib.h>`. |
 
+### What sleeve guarantees, and what the caller provides
+
+sleeve checks every number it is given, and no pointer:
+
+- Every description `sleeve_check` accepts renders, in whole or by rows, and writes as SVG, as
+  text and, rendered, as PNG, with defined behaviour and in time bounded by the size drawn. A
+  size beyond 1 to 16384 is refused before any arithmetic on it.
+- Every style `sleeve_style_check` accepts, `NULL` among them, generates a cover that
+  `sleeve_check` accepts, with or without a given palette of 1 to 16 colours.
+- Every builder call takes any value of its arguments, bringing it within the call's
+  [domain](#writing-a-composition-on-the-builder), and so does a built-in piece's function
+  called with any parameter values.
+
+The caller, a skin compiler or any other, provides what sleeve cannot check:
+
+- **Buffers.** `rgba` holds `height` rows `stride` bytes apart, each of `width × 4` bytes,
+  so `|stride|` is at least `width × 4`; a negative stride runs the rows upward from `rgba`.
+  Every row's offset, `y × stride`, fits a `ptrdiff_t`, and the buffer's size is computed
+  without overflow (16384 × 16384 × 4 bytes is 1 GiB). `sleeve_render_rows` writes only its
+  rows; `sleeve_png` reads every row. `out` holds `capacity` bytes, and is `NULL` only with a
+  capacity of 0.
+- **Names.** Every name, a style's, a mood's, a part's, and those given to `sleeve_find_piece`,
+  `sleeve_find_param` and `sleeve_find_mood`, is NUL-terminated, and is read up to the
+  terminator: checking, fingerprinting and describing take time in proportion to the names'
+  lengths, so a caller taking names from outside bounds their length first.
+- **Styles.** Each list holds its count of entries; a mood's `composition_weights` holds one
+  weight for each of the style's compositions; a built-in's `params` is `NULL` or points to a
+  `sleeve_params`; a mood's `mood` points to a mood definition. `sleeve_style_check` checks the
+  counts and every value, and relies on these.
+- **Code hooks** run as the caller's own code. Containment keeps their covers valid
+  descriptions; it does not make the hook itself safe.
+
 ## The description
 
 Lengths are integers in units of the cover's side, `SLEEVE_UNIT` (10000) being the whole side;
@@ -175,7 +207,8 @@ drawn as records, and so on; `sleeve.h` comments each field.
 
 ### Checking a style
 
-`sleeve_style_check(&style, reason, capacity)` returns 0 for a style generation accepts, or −1
+`sleeve_style_check(&style, reason, capacity)` returns 0 for a style generation accepts, `NULL`
+being the default as it is for generation and fingerprints, or −1
 with the first problem as text, such as `compositions[1] (split): disc_min 4000 is outside 300 to
 3500` or `moods[0] (brand): mid light_hi 400 is outside 420 to 1000`. It refuses counts beyond
 `SLEEVE_STYLE_MAX_MOODS` and `SLEEVE_STYLE_MAX_COMPOSITIONS` (32) or `SLEEVE_STYLE_MAX_HOOKS` (8),
@@ -257,7 +290,10 @@ style's moods; composition choice still follows the style, by the compositions' 
 the palette hooks do not run, and the cover's mood is `SLEEVE_NO_MOOD`, named `given`. The
 colours are assigned to the five roles by their OKLCH lightness and chroma, and the cover's
 `palette` holds them as assigned, so a caller tinting from a cover gets the album's colours back.
-`sleeve_assign_palette` returns the same five roles without generating a cover.
+A given palette takes the place of the mood's draws, so the seed's composition and geometry
+are drawn from a different point of its stream: a seed's cover with a given palette is a cover
+of its own, not the seed's mood cover in other colours. `sleeve_assign_palette` returns the
+same five roles without generating a cover; its colours and roles may overlap.
 
 - The darkest colour is deep, if its lightness is at most 450.
 - The lightest of the rest is pale, if its lightness is at least 750.
@@ -430,9 +466,9 @@ repository's root runs `make check`.
 | containment | hooks adding 30 layers of 12 falling stops, or writing invalid layers, counts, base and palette, leave covers that pass `sleeve_check` with a finisher's layers on top; 3,000 styles of built-in pieces with random parameters in range pass too | no layers kept for finishers; invalid layers kept |
 | parameters | the 90 named indices are `sleeve_find_param`'s and the 21 pieces' defaults their own; each piece run by hand with every parameter at `INT32_MIN` or `INT32_MAX` draws as at its lowest or highest | two named indices swapped; values taken outside their ranges |
 | domains | `sleeve_pick` weighs `SLEEVE_MAX_PICK` weights and no more; `sleeve_oklch`, `sleeve_alpha`, `sleeve_mix`, `sleeve_along` and `sleeve_add_glow` take values beyond their domains as the nearest within, chroma beyond 400 by its steps of 4; a repeating flag is 0 or 1 | each of those calls taking its argument unbrought |
-| style-check | 17 invalid styles are refused, each for its reason; the default, example and empty styles are accepted | a parameter above its `at_most` accepted |
+| style-check | 17 invalid styles are refused, each for its reason; the default, example and empty styles and `NULL` are accepted | a parameter above its `at_most` accepted |
 | style-hash | equal styles fingerprint equal, `NULL` parameters as the defaults and names aside; each of 13 changes that decide covers changes the fingerprint | a code hook's version left out |
-| given-palette | five colours take their roles in all 120 orders; single colours, and black with white, take theirs with tones derived; 0 and 17 colours are refused; covers keep the colours as assigned, of mood `given`, without palette hooks | deep taken as the lightest |
+| given-palette | five colours take their roles in all 120 orders, assigned in place or apart; single colours, and black with white, take theirs with tones derived; 0 and 17 colours are refused; covers keep the colours as assigned, of mood `given`, without palette hooks | deep taken as the lightest |
 | style-determinism | 2,000 seeds of each example style, every built-in hook and given palettes equal their digests and fingerprints in `tests/golden/styles.txt`, whatever the cover held before | duotone's mix rounded down |
 
 ## Why C

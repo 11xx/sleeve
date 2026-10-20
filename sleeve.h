@@ -248,12 +248,13 @@ int sleeve_generate_with_palette(uint64_t seed, const sleeve_style *style,
                                  const sleeve_colour *colours, int count, sleeve_cover *cover);
 
 /* The five roles a given palette is assigned to, as sleeve_generate_with_palette assigns
-   them. Returns 0, or -1 when the count is out of range. */
+   them; colours and roles may overlap. Returns 0, or -1 when the count is out of range. */
 int sleeve_assign_palette(const sleeve_colour *colours, int count,
                           sleeve_colour roles[SLEEVE_ROLES]);
 
-/* 0 when a style is one generation accepts, otherwise -1 and the first problem found, as text
-   in `reason` (NUL-terminated, truncated to the capacity; reason may be NULL). */
+/* 0 when a style is one generation accepts (NULL for the default), otherwise -1 and the first
+   problem found, as text in `reason` (NUL-terminated, truncated to the capacity; reason may
+   be NULL). */
 int sleeve_style_check(const sleeve_style *style, char *reason, size_t capacity);
 
 /* A fingerprint of everything in a style that decides its covers: the moods' recipes and
@@ -987,8 +988,11 @@ static void sleeve__assign(const sleeve_colour *given, int n, sleeve_colour out[
 
 int sleeve_assign_palette(const sleeve_colour *colours, int count,
                           sleeve_colour roles[SLEEVE_ROLES]) {
+  sleeve_colour given[SLEEVE_MAX_GIVEN];
+  int i;
   if (!colours || count < 1 || count > SLEEVE_MAX_GIVEN) return -1;
-  sleeve__assign(colours, count, roles);
+  for (i = 0; i < count; i++) given[i] = colours[i];
+  sleeve__assign(given, count, roles);
   return 0;
 }
 
@@ -2743,7 +2747,7 @@ static int sleeve__check_style(sleeve__text *t, const sleeve_style *style) {
   sleeve__parts s;
   int i, k, reserved = 0;
   int32_t total = 0;
-  if (!style) return sleeve__puts(t, "no style"), -1;
+  if (!style) style = &sleeve_default_style;
   if (sleeve__check_count(t, "mood_count", style->mood_count, style->moods,
                           SLEEVE_STYLE_MAX_MOODS) ||
       sleeve__check_count(t, "composition_count", style->composition_count, style->compositions,

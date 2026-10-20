@@ -1588,7 +1588,8 @@ static void check_domains(void) {
   int i, seen = 0;
   hand_builder(&b, &c, 7);
   for (i = 0; i <= SLEEVE_MAX_PICK; i++) weights[i] = UINT16_MAX;
-  for (i = 0; i < 200; i++) seen |= sleeve_pick(&b, weights, SLEEVE_MAX_PICK + 1) >= SLEEVE_MAX_PICK;
+  for (i = 0; i < 200; i++)
+    seen |= sleeve_pick(&b, weights, SLEEVE_MAX_PICK + 1) >= SLEEVE_MAX_PICK;
   memset(weights, 0, sizeof weights);
   weights[SLEEVE_MAX_PICK] = UINT16_MAX;
   if (seen || sleeve_pick(&b, weights, SLEEVE_MAX_PICK + 1) != SLEEVE_MAX_PICK - 1)
@@ -1739,6 +1740,9 @@ static void check_style_check(void) {
   }
   if (sleeve_style_check(&empty, reason, sizeof reason) == 0) accepted++;
   else if (ok) snprintf(detail, sizeof detail, "refused the empty style: %s", reason), ok = 0;
+  if (sleeve_style_check(0, reason, sizeof reason) == 0) accepted++;
+  else if (ok)
+    snprintf(detail, sizeof detail, "refused NULL, the default style: %s", reason), ok = 0;
   fresh_style();
   test_horizon.v[SLEEVE_HORIZON_SUN] = 101;
   if (sleeve_style_check(&test_style, tiny, sizeof tiny) == 0 || strlen(tiny) != sizeof tiny - 1) {
@@ -1746,8 +1750,8 @@ static void check_style_check(void) {
     ok = 0;
   }
   if (ok) snprintf(detail, sizeof detail, "%d invalid styles refused, each for its reason; the "
-                   "default, example, empty and a full test style (%d) accepted; a reason cut "
-                   "short stays terminated", refused, accepted);
+                   "default, example, empty, NULL and a full test style (%d) accepted; a reason "
+                   "cut short stays terminated", refused, accepted);
   report("style-check", ok, detail);
 }
 
@@ -1854,6 +1858,9 @@ static void check_given_palette(void) {
     sleeve_assign_palette(in, 5, roles);
     if (memcmp(roles, first, sizeof roles) != 0 && !failed)
       failed = "the roles depend on the colours' order";
+    sleeve_assign_palette(in, 5, in);
+    if (memcmp(in, roles, sizeof roles) != 0 && !failed)
+      failed = "the roles assigned in place differ from those assigned apart";
     permutations++;
     for (j = 3; j >= 0 && perm[j] > perm[j + 1]; j--) {}
     if (j < 0) break;
@@ -1924,10 +1931,11 @@ static void check_given_palette(void) {
     }
   }
   if (failed) snprintf(detail, sizeof detail, "%s", failed);
-  else snprintf(detail, sizeof detail, "five colours take their roles in all %d orders; one red, "
-                "one navy, one cream, and black with white take theirs, with tones derived; 0 "
-                "and 17 colours refused; covers keep the colours as assigned, of mood \"given\", "
-                "composed by the style without its palette hooks", permutations);
+  else snprintf(detail, sizeof detail, "five colours take their roles in all %d orders, in place "
+                "too; one red, one navy, one cream, and black with white take theirs, with "
+                "tones derived; 0 and 17 colours refused; covers keep the colours as assigned, "
+                "of mood \"given\", composed by the style without its palette hooks",
+                permutations);
   report("given-palette", !failed, detail);
 }
 

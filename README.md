@@ -195,10 +195,11 @@ piece's function first, a built-in horizon and then its own overlay:
 /* A horizon with a ring hung over it. */
 static void ringed_horizon(sleeve_builder *b, const void *params) {
   sleeve_layer *ring;
-  int32_t r = sleeve_range(b, 1200, 2000);
+  int32_t r;
   (void)params;
   sleeve_compose_horizon(b, NULL);
   if (sleeve_layers_left(b) == 0) return;
+  r = sleeve_range(b, 1200, 2000);
   ring = sleeve_add_radial(b, 5000, sleeve_range(b, 2500, 4000));
   sleeve_add_stop(ring, r, sleeve_alpha(b->palette[SLEEVE_PALE], 0));
   sleeve_add_band(ring, r, r + 150, b->palette[SLEEVE_PALE]);
@@ -207,6 +208,9 @@ static void ringed_horizon(sleeve_builder *b, const void *params) {
 
 static const sleeve_style_part parts[] = {{"ringed-horizon", ringed_horizon, 0, 1, 0, 1}};
 ```
+
+A built-in called first draws exactly what it draws alone, since the hook's own draws come
+after it; `sleeve_layers_left` then says whether there is room for more.
 
 Whatever a hook does through the builder, the cover stays within `SLEEVE_MAX_LAYERS` and
 `SLEEVE_MAX_STOPS` and passes `sleeve_check`:
@@ -372,6 +376,15 @@ repository's root runs `make check`.
 | svg | 48 covers rendered by `rsvg-convert` at 16× and averaged down are within mean 0.6, 0.2 % of channels beyond 8, worst 48 of the raster (skipped without a renderer) | circles drawn for ellipses |
 | variety | over 20,000 seeds, compositions and moods keep their shares within 12 %, runs of neighbouring seeds look random, palettes cover the hue circle, no two covers repeat, and neighbouring seeds look different | uniform composition weights; unmixed seeds |
 | api | row ranges equal the whole raster, invalid inputs are refused, sizing calls agree, the hash is fixed | a translucent base |
+| default-style | the default style through the styled call, declared from names as a skin compiler would, and with every part empty, each draw `sleeve_generate`'s bytes for 20,000 seeds and share its fingerprint | moods' own composition weights applied only in the default style itself |
+| style-shares | a style of 3 moods and 4 compositions draws them in its declared shares over 20,000 seeds, a mood's own composition weights apply under it, and names come through the style | the first weight counted one too many |
+| style-hooks | each built-in palette hook changes the palette the composition draws from, in order, and not a given palette; each finisher paints on top | the last palette hook skipped |
+| builder | a horizon with a ring over it and a disc on a ground, both on the builder, pass `sleeve_check` and render as drawn, the horizon as it draws alone; the budget and generator answer as documented | a disc without its closing stop |
+| containment | hooks adding 30 layers of 12 falling stops, or writing invalid layers, counts, base and palette, leave covers that pass `sleeve_check` with a finisher's layers on top; 3,000 styles of built-in pieces with random parameters in range pass too | no layers kept for finishers; invalid layers kept |
+| style-check | 17 invalid styles are refused, each for its reason; the default, example and empty styles are accepted | a parameter above its `at_most` accepted |
+| style-hash | equal styles fingerprint equal, `NULL` parameters as the defaults and names aside; each of 13 changes that decide covers changes the fingerprint | a code hook's version left out |
+| given-palette | five colours take their roles in all 120 orders; single colours, and black with white, take theirs with tones derived; 0 and 17 colours are refused; covers keep the colours as assigned, of mood `given`, without palette hooks | deep taken as the lightest |
+| style-determinism | 2,000 seeds of each example style, every built-in hook and given palettes equal their digests and fingerprints in `tests/golden/styles.txt`, whatever the cover held before | duotone's mix rounded down |
 
 ## Why C
 

@@ -2,7 +2,9 @@
 
    usage: check [--golden DIR] [--scratch DIR] [--require-svg] [--write-goldens] [CHECK...]
 
-   CHECK is any of descriptions, rasters, antialiasing, png, svg, variety, api; all by default.
+   CHECK is any of descriptions, rasters, antialiasing, png, svg, variety, api, default-style,
+   style-shares, style-hooks, builder, containment, style-check, style-hash, given-palette and
+   style-determinism; all by default.
    --golden names the directory of golden files (tests/golden by default); --write-goldens
    writes them instead of checking them. --scratch is where the SVG check writes its files
    (the system's temporary directory by default). The SVG check renders with rsvg-convert, or
@@ -10,6 +12,7 @@
 
 #define SLEEVE_IMPLEMENTATION
 #include "sleeve.h"
+#include "../tools/styles.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
@@ -802,38 +805,943 @@ static void check_api(void) {
   report("api", ok, "row ranges equal the whole; refusals; sizing calls; the hash's values");
 }
 
+/* ---- Styles ---------------------------------------------------------------------------- */
+
+#define STYLE_SEEDS 20000
+
+static int same_cover(const sleeve_cover *a, const sleeve_cover *b) {
+  return memcmp(a, b, sizeof *a) == 0;
+}
+
+static sleeve_colour hex(uint32_t v) {
+  sleeve_colour c;
+  c.r = (uint8_t)(v >> 16);
+  c.g = (uint8_t)(v >> 8);
+  c.b = (uint8_t)v;
+  c.a = 255;
+  return c;
+}
+
+static int same_colour(sleeve_colour a, sleeve_colour b) {
+  return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+}
+
+static int hue_distance(int32_t a, int32_t b) {
+  int d = abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/* The default style as a skin compiler would declare it: built-ins found by name, weights as
+   numbers. */
+static const char *const default_mood_names[SLEEVE_MOODS] = {
+  "dusk", "sea", "earth", "paper-warm", "paper-cool", "neon", "mist", "garden", "duotone", "ember",
+};
+static const uint16_t default_mood_weights[SLEEVE_MOODS] = {12, 12, 11, 9, 8, 9, 10, 10, 10, 9};
+static const char *const default_composition_names[SLEEVE_COMPOSITIONS] = {
+  "horizon", "glow", "disc", "pair", "stripes", "bands", "split", "bars", "constellation",
+  "grooves", "orbs", "checks",
+};
+static const uint16_t default_composition_weights[SLEEVE_COMPOSITIONS] = {14, 6, 12, 4, 12, 10,
+                                                                           12, 6, 7, 6, 8, 3};
+static const uint16_t neon_row[SLEEVE_COMPOSITIONS] = {14, 6, 12, 4, 0, 0, 0, 18, 14, 0, 0, 0};
+
+static void declared_default(sleeve_style *style, sleeve_style_mood *moods,
+                             sleeve_style_part *parts) {
+  int i;
+  for (i = 0; i < SLEEVE_MOODS; i++) {
+    moods[i].mood = sleeve_find_mood(default_mood_names[i]);
+    moods[i].weight = default_mood_weights[i];
+    moods[i].composition_weights = i == SLEEVE_NEON ? neon_row : 0;
+  }
+  for (i = 0; i < SLEEVE_COMPOSITIONS; i++) {
+    const sleeve_piece *piece = sleeve_find_piece(SLEEVE_COMPOSE, default_composition_names[i]);
+    memset(&parts[i], 0, sizeof parts[i]);
+    parts[i].name = default_composition_names[i];
+    parts[i].run = piece ? piece->run : 0;
+    parts[i].weight = default_composition_weights[i];
+  }
+  memset(style, 0, sizeof *style);
+  style->name = "declared";
+  style->moods = moods;
+  style->mood_count = SLEEVE_MOODS;
+  style->compositions = parts;
+  style->composition_count = SLEEVE_COMPOSITIONS;
+}
+
+/* The default style through the styled call, as a copy declared from names, and as a style
+   with every part empty, draws what sleeve_generate draws. */
+static void check_default_style(void) {
+  sleeve_style_mood moods[SLEEVE_MOODS];
+  sleeve_style_part parts[SLEEVE_COMPOSITIONS];
+  sleeve_style declared, empty;
+  int i, first_declared = -1, first_empty = -1, first_styled = -1, prints_agree;
+  char detail[512];
+  declared_default(&declared, moods, parts);
+  memset(&empty, 0, sizeof empty);
+  for (i = 0; i < STYLE_SEEDS; i++) {
+    sleeve_cover plain, styled, copy, none;
+    sleeve_generate((uint64_t)i, &plain);
+    sleeve_generate_styled((uint64_t)i, &sleeve_default_style, &styled);
+    sleeve_generate_styled((uint64_t)i, &declared, &copy);
+    sleeve_generate_styled((uint64_t)i, &empty, &none);
+    if (first_styled < 0 && !same_cover(&plain, &styled)) first_styled = i;
+    if (first_declared < 0 && !same_cover(&plain, &copy)) first_declared = i;
+    if (first_empty < 0 && !same_cover(&plain, &none)) first_empty = i;
+  }
+  prints_agree = sleeve_style_hash(&declared) == sleeve_style_hash(&sleeve_default_style) &&
+                 sleeve_style_hash(&empty) == sleeve_style_hash(&sleeve_default_style);
+  if (first_styled >= 0)
+    snprintf(detail, sizeof detail, "seed %d differs between sleeve_generate and the default "
+             "style through sleeve_generate_styled", first_styled);
+  else if (first_declared >= 0)
+    snprintf(detail, sizeof detail, "seed %d differs between sleeve_generate and the default "
+             "style declared from names", first_declared);
+  else if (first_empty >= 0)
+    snprintf(detail, sizeof detail, "seed %d differs between sleeve_generate and a style with "
+             "every part empty", first_empty);
+  else if (!prints_agree)
+    snprintf(detail, sizeof detail, "the declared copy or the empty style fingerprints apart "
+             "from the default style");
+  else
+    snprintf(detail, sizeof detail, "%d seeds: the default style through the styled call, "
+             "declared from names, and empty, each draw sleeve_generate's bytes and share its "
+             "fingerprint", STYLE_SEEDS);
+  report("default-style", first_styled < 0 && first_declared < 0 && first_empty < 0 && prints_agree,
+         detail);
+}
+
+/* A style's moods and compositions are drawn in the shares it declares, a mood's own weights
+   apply under it, and names come through the style. */
+static void check_style_shares(void) {
+  static const uint16_t ember_weights[4] = {1, 2, 0, 0};
+  sleeve_style_mood moods[3] = {{0, 1, 0}, {0, 3, 0}, {0, 6, ember_weights}};
+  sleeve_style_part parts[4] = {
+    {"horizon", sleeve_compose_horizon, 0, 1, 0, 0}, {"disc", sleeve_compose_disc, 0, 2, 0, 0},
+    {"bars", sleeve_compose_bars, 0, 3, 0, 0}, {"orbs", sleeve_compose_orbs, 0, 4, 0, 0},
+  };
+  sleeve_style style = {"shares", moods, 3, parts, 4, 0, 0, 0, 0};
+  long by_mood[3] = {0}, open[4] = {0}, ember[4] = {0}, open_total = 0, ember_total = 0;
+  double worst_mood = 0, worst_open = 0, ember_horizon;
+  int i, k, misnamed = 0;
+  char detail[512];
+  moods[0].mood = sleeve_find_mood("dusk");
+  moods[1].mood = sleeve_find_mood("sea");
+  moods[2].mood = sleeve_find_mood("ember");
+  for (i = 0; i < STYLE_SEEDS; i++) {
+    sleeve_cover c;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    if (c.mood > 2 || c.composition > 3) {
+      misnamed++;
+      continue;
+    }
+    by_mood[c.mood]++;
+    if (c.mood == 2) ember[c.composition]++, ember_total++;
+    else open[c.composition]++, open_total++;
+    if (strcmp(sleeve_style_composition_name(&style, c.composition), parts[c.composition].name) ||
+        strcmp(sleeve_style_mood_name(&style, c.mood), moods[c.mood].mood->name))
+      misnamed++;
+  }
+  for (k = 0; k < 3; k++) {
+    double expected = STYLE_SEEDS * moods[k].weight / 10.0;
+    double dev = fabs(by_mood[k] - expected) / expected;
+    if (dev > worst_mood) worst_mood = dev;
+  }
+  for (k = 0; k < 4; k++) {
+    double expected = open_total * parts[k].weight / 10.0;
+    double dev = fabs(open[k] - expected) / expected;
+    if (dev > worst_open) worst_open = dev;
+  }
+  ember_horizon = ember_total ? (double)ember[0] / ember_total : 0;
+  snprintf(detail, sizeof detail,
+           "%d seeds in a style of 3 moods (1:3:6) and 4 compositions (1:2:3:4): moods within "
+           "%.1f%% of their shares and compositions within %.1f%% (at most 6%% and 10%%); under "
+           "the mood with its own weights (1:2:0:0), %ld covers of a composition weighted 0 "
+           "(none) and horizon's share %.3f (1/3, within 0.03); %d covers named or indexed "
+           "outside the style (none)",
+           STYLE_SEEDS, 100 * worst_mood, 100 * worst_open, ember[2] + ember[3], ember_horizon,
+           misnamed);
+  report("style-shares", worst_mood <= 0.06 && worst_open <= 0.10 && ember[2] + ember[3] == 0 &&
+         fabs(ember_horizon - 1.0 / 3) <= 0.03 && misnamed == 0, detail);
+}
+
+/* Palette hooks transform the palette before composing, in order, and not a given palette;
+   finishers paint over the composition. */
+static void check_style_hooks(void) {
+  static const sleeve_tint_params to_x = {0x3366cc, 1000}, to_y = {0xcc6633, 1000};
+  static const sleeve_monochrome_params blue = {200};
+  static const sleeve_duotone_params inks = {0x202a44, 0xf0e4c8};
+  static const sleeve_lightness_params middle = {400, 600};
+  static const sleeve_chroma_params grey = {0};
+  static const sleeve_wash_params wash = {SLEEVE_ACCENT, 40};
+  const sleeve_style_part tint_x = {"tint", sleeve_palette_tint, &to_x, 0, 0, 0};
+  const sleeve_style_part tint_y = {"tint", sleeve_palette_tint, &to_y, 0, 0, 0};
+  sleeve_style_part one[1], two[2], finish[2];
+  sleeve_style style;
+  const char *failed = 0;
+  char detail[512];
+  int i, k, seeds = 200;
+  one[0] = tint_x;
+  two[0] = tint_x;
+  two[1] = tint_y;
+  for (i = 0; i < seeds; i++) {
+    sleeve_cover c, given;
+    sleeve_colour album[3], roles[5];
+    int32_t l, ch, h, lo = 1000, hi = 0, dark = 0, light = 0;
+    memset(&style, 0, sizeof style);
+    style.palette_hooks = one;
+    style.palette_hook_count = 1;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    for (k = 0; k < 5; k++)
+      if (!failed && !same_colour(c.palette[k], hex(0x3366cc)))
+        failed = "tint did not turn the palette";
+    if (!failed && !same_colour(c.base, hex(0x3366cc)))
+      failed = "the composition drew from the untinted palette";
+    album[0] = hex(0x101820), album[1] = hex(0xf2e8d0), album[2] = hex(0xc0392b);
+    sleeve_generate_with_palette((uint64_t)i, &style, album, 3, &given);
+    sleeve_assign_palette(album, 3, roles);
+    if (!failed && memcmp(given.palette, roles, sizeof roles) != 0)
+      failed = "a palette hook ran on a given palette";
+    style.palette_hooks = two;
+    style.palette_hook_count = 2;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    if (!failed && !same_colour(c.palette[0], hex(0xcc6633)))
+      failed = "two palette hooks did not run in order";
+    two[0].run = sleeve_palette_monochrome, two[0].params = &blue;
+    two[1].run = sleeve_palette_chroma, two[1].params = 0;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    for (k = 0; k < 5; k++) {
+      sleeve_to_oklch(c.palette[k], &l, &ch, &h);
+      if (!failed && ch >= 30 && hue_distance(h, 200) > 8)
+        failed = "monochrome left a colour off its hue";
+    }
+    two[0] = tint_x, two[1] = tint_y;
+    one[0].run = sleeve_palette_duotone, one[0].params = &inks;
+    style.palette_hooks = one;
+    style.palette_hook_count = 1;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    for (k = 0; k < 5; k++) {
+      sleeve_to_oklch(c.palette[k], &l, &ch, &h);
+      if (l < lo) lo = l, dark = k;
+      if (l > hi) hi = l, light = k;
+    }
+    if (!failed && (!same_colour(c.palette[dark], hex(0x202a44)) ||
+                    !same_colour(c.palette[light], hex(0xf0e4c8))))
+      failed = "duotone did not print the darkest and lightest colours in its inks";
+    one[0].run = sleeve_palette_lightness, one[0].params = &middle;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    for (k = 0; k < 5; k++) {
+      sleeve_to_oklch(c.palette[k], &l, &ch, &h);
+      if (!failed && (l < 395 || l > 605)) failed = "lightness left a colour outside its range";
+    }
+    one[0].run = sleeve_palette_chroma, one[0].params = &grey;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    for (k = 0; k < 5; k++) {
+      sleeve_to_oklch(c.palette[k], &l, &ch, &h);
+      if (!failed && ch > 4) failed = "chroma 0 left a colour coloured";
+    }
+    one[0] = tint_x;
+    /* finishers: a vignette and a frame, then a wash and lines */
+    memset(&style, 0, sizeof style);
+    memset(finish, 0, sizeof finish);
+    finish[0].name = "vignette", finish[0].run = sleeve_finish_vignette, finish[0].layers = 1;
+    finish[1].name = "frame", finish[1].run = sleeve_finish_frame, finish[1].layers = 2;
+    style.finishers = finish;
+    style.finisher_count = 2;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    {
+      const sleeve_layer *v = &c.layers[c.layer_count - 3], *f = &c.layers[c.layer_count - 2];
+      static uint8_t corner[64 * 64 * 4];
+      if (!failed && (c.layer_count < 4 || v->kind != SLEEVE_RADIAL || v->cx != 5000 ||
+                      f->kind != SLEEVE_LINEAR || f->angle != 90 || f->stop_count != 6 ||
+                      c.layers[c.layer_count - 1].angle != 180))
+        failed = "a vignette and a frame are not the top three layers";
+      sleeve_render(&c, 64, 64, corner, 64 * 4);
+      if (!failed && (corner[0] != c.palette[SLEEVE_PALE].r ||
+                      corner[1] != c.palette[SLEEVE_PALE].g ||
+                      corner[2] != c.palette[SLEEVE_PALE].b))
+        failed = "the frame does not paint the corner pale";
+    }
+    finish[0].name = "wash", finish[0].run = sleeve_finish_wash, finish[0].params = &wash;
+    finish[1].name = "lines", finish[1].run = sleeve_finish_lines, finish[1].layers = 1;
+    sleeve_generate_styled((uint64_t)i, &style, &c);
+    if (!failed && (c.layers[c.layer_count - 2].stop_count != 1 ||
+                    c.layers[c.layer_count - 2].stops[0].colour.a != 40 ||
+                    !c.layers[c.layer_count - 1].repeating))
+      failed = "a wash and lines are not the top two layers";
+    if (failed) break;
+  }
+  if (failed) snprintf(detail, sizeof detail, "seed %d: %s", i, failed);
+  else snprintf(detail, sizeof detail, "%d seeds: tint, two tints in order, monochrome, duotone, "
+                "lightness and chroma transform the palette the composition draws from, and not "
+                "a given palette; vignette, frame, wash and lines paint on top", seeds);
+  report("style-hooks", !failed, detail);
+}
+
+/* ---- Hooks the builder and containment checks run ---- */
+
+/* A horizon with a ring hung over it: a built-in composition, then an overlay. */
+static void ringed_horizon(sleeve_builder *b, const void *params) {
+  sleeve_layer *ring;
+  int32_t r;
+  (void)params;
+  sleeve_compose_horizon(b, NULL);
+  if (sleeve_layers_left(b) == 0) return;
+  r = sleeve_range(b, 1200, 2000);
+  ring = sleeve_add_radial(b, 5000, sleeve_range(b, 2500, 4000));
+  sleeve_add_stop(ring, r, sleeve_alpha(b->palette[SLEEVE_PALE], 0));
+  sleeve_add_band(ring, r, r + 150, b->palette[SLEEVE_PALE]);
+  sleeve_add_stop(ring, r + 150, sleeve_alpha(b->palette[SLEEVE_PALE], 0));
+}
+
+/* What the hook below saw of the builder. */
+static struct {
+  int left_before, left_after, left_full, range_reversed, below_zero, count_full;
+} seen;
+
+/* A disc on a pale ground, then layers until none are left, noting what the builder says. */
+static void target(sleeve_builder *b, const void *params) {
+  int i;
+  (void)params;
+  b->cover->base = b->palette[SLEEVE_PALE];
+  seen.left_before = sleeve_layers_left(b);
+  sleeve_add_disc(b, 5000, 5000, 2000, b->palette[SLEEVE_ACCENT]);
+  seen.left_after = sleeve_layers_left(b);
+  seen.range_reversed = sleeve_range(b, 5, 3);
+  seen.below_zero = sleeve_below(b, 0);
+  for (i = 0; i < 20; i++) {
+    sleeve_layer *l = sleeve_add_linear(b, 45);
+    sleeve_add_stop(l, 0, sleeve_alpha(b->palette[SLEEVE_DEEP], 0));
+  }
+  seen.left_full = sleeve_layers_left(b);
+  seen.count_full = b->cover->layer_count;
+}
+
+/* Thirty layers of twelve stops each, the stops in falling order. */
+static void greedy(sleeve_builder *b, const void *params) {
+  int i, j;
+  (void)params;
+  seen.left_before = sleeve_layers_left(b);
+  for (i = 0; i < 30; i++) {
+    sleeve_layer *l = sleeve_add_linear(b, i * 7);
+    for (j = 0; j < 12; j++) sleeve_add_stop(l, 3000 - j * 100, b->palette[j % 5]);
+  }
+}
+
+/* Writes what the builder would refuse straight into the description. */
+static void vandal(sleeve_builder *b, const void *params) {
+  sleeve_layer *l;
+  int i;
+  (void)params;
+  l = sleeve_add_radial(b, 5000, 5000);
+  sleeve_add_band(l, 0, 3000, b->palette[SLEEVE_ACCENT]);
+  l->ex = 0;
+  l = sleeve_add_layer(b, SLEEVE_LINEAR, 1);
+  sleeve_add_band(l, 500, 900, b->palette[SLEEVE_PALE]);
+  sleeve_add_linear(b, 30);
+  l = sleeve_add_layer(b, 9, 0);
+  sleeve_add_stop(l, 0, b->palette[SLEEVE_MID]);
+  l = sleeve_add_linear(b, 0);
+  sleeve_add_stop(l, 0, b->palette[SLEEVE_MID]);
+  l->stops[1].at = -5;
+  l->stop_count = 2;
+  b->limit = 1000;
+  for (i = 0; i < 20; i++) sleeve_add_stop(sleeve_add_linear(b, i), 0, b->palette[i % 5]);
+  b->cover->base.a = 0;
+  b->cover->palette[2].a = 3;
+  b->cover->layer_count = 200;
+}
+
+static void vandal_palette(sleeve_builder *b, const void *params) {
+  int i;
+  (void)params;
+  for (i = 0; i < SLEEVE_ROLES; i++) b->palette[i].a = 0;
+  sleeve_add_stop(sleeve_add_linear(b, 0), 0, b->palette[0]);
+}
+
+/* A custom composition built on the builder, alone and over a built-in one, renders and passes
+   sleeve_check; the builder's generator and budget answer as documented. */
+static void check_builder(void) {
+  sleeve_style_part ringed[1] = {{"ringed-horizon", ringed_horizon, 0, 1, 0, 1}};
+  sleeve_style_part plain[1] = {{"horizon", sleeve_compose_horizon, 0, 1, 0, 0}};
+  sleeve_style_part own[1] = {{"target", target, 0, 1, 0, 1}};
+  sleeve_style with_ring = {"ringed", 0, 0, ringed, 1, 0, 0, 0, 0};
+  sleeve_style horizon = {"horizon", 0, 0, plain, 1, 0, 0, 0, 0};
+  sleeve_style mine = {"target", 0, 0, own, 1, 0, 0, 0, 0};
+  const char *failed = 0;
+  char detail[512];
+  int i, seeds = 500;
+  for (i = 0; i < seeds; i++) {
+    sleeve_cover a, b;
+    uint8_t px[16 * 16 * 4];
+    const sleeve_layer *ring;
+    sleeve_generate_styled((uint64_t)i, &with_ring, &a);
+    sleeve_generate_styled((uint64_t)i, &horizon, &b);
+    ring = &a.layers[a.layer_count - 1];
+    if (sleeve_check(&a) || sleeve_render(&a, 16, 16, px, 16 * 4))
+      failed = "a horizon with a ring does not pass sleeve_check";
+    else if (a.layer_count != b.layer_count + 1 ||
+             memcmp(a.layers, b.layers, sizeof a.layers[0] * b.layer_count) != 0)
+      failed = "a built-in horizon called from a hook drew other layers than on its own";
+    else if (ring->kind != SLEEVE_RADIAL || ring->stop_count != 4 || ring->stops[1].colour.a != 255)
+      failed = "the ring over the horizon is not its top layer";
+    memset(&seen, 0, sizeof seen);
+    sleeve_generate_styled((uint64_t)i, &mine, &a);
+    sleeve_render(&a, 16, 16, px, 16 * 4);
+    if (failed) break;
+    if (sleeve_check(&a)) failed = "a composition on the builder does not pass sleeve_check";
+    else if (!same_colour(sleeve_alpha(a.layers[0].stops[0].colour, 255),
+                          a.palette[SLEEVE_ACCENT]) ||
+             px[(8 * 16 + 8) * 4] != a.palette[SLEEVE_ACCENT].r ||
+             px[(8 * 16 + 8) * 4 + 1] != a.palette[SLEEVE_ACCENT].g)
+      failed = "the disc is not drawn in the accent at the centre";
+    else if (px[0] != a.palette[SLEEVE_PALE].r || px[1] != a.palette[SLEEVE_PALE].g ||
+             px[2] != a.palette[SLEEVE_PALE].b)
+      failed = "the disc covers the corner, which is the pale ground";
+    else if (seen.left_before != SLEEVE_MAX_LAYERS || seen.left_after != SLEEVE_MAX_LAYERS - 1 ||
+             seen.left_full != 0 || seen.count_full != SLEEVE_MAX_LAYERS)
+      failed = "sleeve_layers_left does not count down to 0 at the limit";
+    else if (seen.range_reversed != 5 || seen.below_zero != 0)
+      failed = "sleeve_range or sleeve_below misanswers a reversed or empty range";
+    if (failed) break;
+  }
+  if (failed) snprintf(detail, sizeof detail, "seed %d: %s", i, failed);
+  else snprintf(detail, sizeof detail, "%d seeds: a horizon with a ring over it and a disc on a "
+                "ground, both on the builder, pass sleeve_check and render as drawn; the "
+                "builder's budget and generator answer as documented", seeds);
+  report("builder", !failed, detail);
+}
+
+/* A random parameter struct within a built-in piece's ranges. */
+static void random_params(const sleeve_piece *piece, int32_t *v, uint64_t *state) {
+  int i;
+  for (i = 0; i < piece->param_count; i++) {
+    const sleeve_param *p = &piece->params[i];
+    *state = *state * 6364136223846793005ull + 1442695040888963407ull;
+    v[i] = p->lo + (int32_t)((*state >> 33) % (uint64_t)(p->hi - p->lo + 1));
+  }
+  for (i = 0; i < piece->param_count; i++) {
+    const sleeve_param *p = &piece->params[i];
+    if (p->at_most >= 0 && v[i] > v[p->at_most]) v[i] = v[p->at_most];
+  }
+}
+
+/* Hooks that overrun the budgets or write invalid layers leave a cover that passes
+   sleeve_check, finishers keep the layers they reserve, and built-in pieces with any
+   parameters in range stay within bounds. */
+static void check_containment(void) {
+  sleeve_style_part greed[1] = {{"greedy", greedy, 0, 1, 0, 1}};
+  sleeve_style_part wreck[1] = {{"vandal", vandal, 0, 1, 0, 1}};
+  sleeve_style_part wreck_palette[1] = {{"vandal", vandal_palette, 0, 0, 0, 1}};
+  sleeve_style_part frame[1] = {{"frame", sleeve_finish_frame, 0, 0, 2, 0}};
+  sleeve_style greedy_style = {"greedy", 0, 0, greed, 1, 0, 0, frame, 1};
+  sleeve_style vandal_style = {"vandal", 0, 0, wreck, 1, wreck_palette, 1, 0, 0};
+  const char *failed = 0;
+  char detail[512];
+  int i, k, fuzzed = 0;
+  uint64_t state = 0x5eed;
+  for (i = 0; i < 300 && !failed; i++) {
+    sleeve_cover c;
+    sleeve_generate_styled((uint64_t)i, &greedy_style, &c);
+    if (sleeve_check(&c))
+      failed = "thirty layers of twelve stops leave a cover sleeve_check refuses";
+    else if (seen.left_before != SLEEVE_MAX_LAYERS - 2)
+      failed = "the composition was not told the frame's two layers are kept";
+    else if (c.layer_count != SLEEVE_MAX_LAYERS || c.layers[10].angle != 90 ||
+             c.layers[11].angle != 180 || c.layers[10].stop_count != 6)
+      failed = "the frame finisher's layers are missing from the top of a full cover";
+    for (k = 0; k < 10 && !failed; k++)
+      if (c.layers[k].stop_count != SLEEVE_MAX_STOPS)
+        failed = "a layer kept more stops than allowed";
+    sleeve_generate_styled((uint64_t)i, &vandal_style, &c);
+    if (failed) break;
+    if (sleeve_check(&c)) failed = "invalid layers written by a hook were kept";
+    else if (c.layer_count > SLEEVE_MAX_LAYERS || c.base.a != 255)
+      failed = "the count or base was left out of bounds";
+    for (k = 0; k < 5 && !failed; k++)
+      if (c.palette[k].a != 255) failed = "a palette colour was left translucent";
+  }
+  /* built-in pieces with random parameters in range */
+  for (k = 0; k < 3000 && !failed; k++) {
+    int n_comp, n_pal, n_fin, j;
+    const sleeve_piece *comps = sleeve_pieces(SLEEVE_COMPOSE, &n_comp);
+    const sleeve_piece *pals = sleeve_pieces(SLEEVE_PALETTE, &n_pal);
+    const sleeve_piece *fins = sleeve_pieces(SLEEVE_FINISH, &n_fin);
+    int32_t pc[16], pp[16], pf[2][16];
+    sleeve_style_part comp, pal, fin[2];
+    sleeve_style style;
+    sleeve_cover c;
+    char reason[256];
+    const sleeve_piece *a = &comps[k % n_comp], *p = &pals[(k / 3) % n_pal];
+    memset(&style, 0, sizeof style);
+    random_params(a, pc, &state);
+    random_params(p, pp, &state);
+    memset(&comp, 0, sizeof comp);
+    memset(&pal, 0, sizeof pal);
+    memset(fin, 0, sizeof fin);
+    comp.name = a->name;
+    comp.run = a->run;
+    comp.params = pc;
+    comp.weight = 1;
+    pal.name = p->name;
+    pal.run = p->run;
+    pal.params = pp;
+    for (j = 0; j < 2; j++) {
+      const sleeve_piece *f = &fins[(k / 7 + j) % n_fin];
+      random_params(f, pf[j], &state);
+      fin[j].name = f->name;
+      fin[j].run = f->run;
+      fin[j].params = pf[j];
+      fin[j].layers = (uint8_t)f->layers;
+    }
+    style.compositions = &comp, style.composition_count = 1;
+    style.palette_hooks = &pal, style.palette_hook_count = k % 2;
+    style.finishers = fin, style.finisher_count = k % 3;
+    if (sleeve_style_check(&style, reason, sizeof reason)) {
+      failed = "parameters drawn within the ranges were refused";
+      break;
+    }
+    for (j = 0; j < 3 && !failed; j++) {
+      sleeve_generate_styled((uint64_t)(k * 3 + j), &style, &c);
+      if (sleeve_check(&c) || c.layer_count > SLEEVE_MAX_LAYERS)
+        failed = "a built-in piece with parameters in range drew a cover sleeve_check refuses";
+    }
+    fuzzed++;
+  }
+  if (failed) snprintf(detail, sizeof detail, "%s", failed);
+  else snprintf(detail, sizeof detail, "300 seeds each of a hook adding 30 layers of 12 falling "
+                "stops under a 2-layer frame, and of hooks writing invalid layers, counts, base "
+                "and palette, pass sleeve_check with the frame on top; %d styles of built-in "
+                "pieces with random parameters in range pass too", fuzzed);
+  report("containment", !failed, detail);
+}
+
+/* ---- Style checks and fingerprints ---- */
+
+static sleeve_mood_def test_mood;
+static sleeve_style_mood test_moods[2];
+static sleeve_horizon_params test_horizon;
+static sleeve_style_part test_parts[2];
+static sleeve_style_part test_finishers[4];
+static sleeve_style_part test_hooks[1];
+static uint16_t test_row[2];
+static sleeve_style test_style;
+
+/* A valid style using every part, rebuilt before each change a check makes to it. */
+static sleeve_style *fresh_style(void) {
+  static const sleeve_tint_params warm = {0xf0d0a0, 200};
+  test_mood = *sleeve_find_mood("sea");
+  test_mood.name = "test";
+  test_moods[0].mood = &test_mood, test_moods[0].weight = 2, test_moods[0].composition_weights = 0;
+  test_moods[1].mood = sleeve_find_mood("ember"), test_moods[1].weight = 1;
+  test_row[0] = 1, test_row[1] = 0;
+  test_moods[1].composition_weights = test_row;
+  test_horizon =
+      *(const sleeve_horizon_params *)sleeve_find_piece(SLEEVE_COMPOSE, "horizon")->defaults;
+  memset(test_parts, 0, sizeof test_parts);
+  test_parts[0].name = "horizon", test_parts[0].run = sleeve_compose_horizon;
+  test_parts[0].params = &test_horizon, test_parts[0].weight = 3;
+  test_parts[1].name = "ringed", test_parts[1].run = ringed_horizon, test_parts[1].weight = 1;
+  test_parts[1].version = 1;
+  memset(test_finishers, 0, sizeof test_finishers);
+  test_finishers[0].name = "frame", test_finishers[0].run = sleeve_finish_frame;
+  test_finishers[0].layers = 2;
+  test_finishers[1] = test_finishers[2] = test_finishers[3] = test_finishers[0];
+  memset(test_hooks, 0, sizeof test_hooks);
+  test_hooks[0].name = "tint";
+  test_hooks[0].run = sleeve_palette_tint;
+  test_hooks[0].params = &warm;
+  memset(&test_style, 0, sizeof test_style);
+  test_style.name = "test";
+  test_style.moods = test_moods, test_style.mood_count = 2;
+  test_style.compositions = test_parts, test_style.composition_count = 2;
+  test_style.palette_hooks = test_hooks, test_style.palette_hook_count = 1;
+  test_style.finishers = test_finishers, test_style.finisher_count = 1;
+  return &test_style;
+}
+
+/* Invalid styles are refused with a reason a compiler can report; valid ones are accepted. */
+static void check_style_check(void) {
+  static const char *const expected[] = {
+    "the moods' weights are all 0", "hue_lo 400 is outside 0 to 359",
+    "mid light_hi 1200 is outside 520 to 1000", "accent chroma_hi 10 is outside 70 to 400",
+    "exact alpha is neither 0 nor 255", "the compositions' weights are all 0",
+    "compositions[0] (horizon): sun 101 is outside 0 to 100",
+    "compositions[0] (horizon): sun_min 1600 is above sun_max 1500", "has no function",
+    "has no name", "reserves 1 layers but \"frame\" adds up to 2",
+    "the finishers reserve 8 layers, more than 6", "mood_count 33 is outside 0 to 32",
+    "moods[1] (ember): its composition weights are all 0",
+    "runs the built-in palette hook \"tint\", which is not a composition",
+    "moods[0]: has no mood definition", "palette_hook_count is set but its list is NULL",
+  };
+  const int cases = (int)(sizeof expected / sizeof expected[0]);
+  const sleeve_style *valid[] = {&sleeve_default_style, &riso_style, &brand_style, &gallery_style};
+  sleeve_style empty;
+  char reason[256], detail[1024], tiny[8];
+  int i, refused = 0, accepted = 0, ok = 1;
+  memset(&empty, 0, sizeof empty);
+  detail[0] = 0;
+  for (i = 0; i < cases; i++) {
+    sleeve_style *s = fresh_style();
+    switch (i) {
+    case 0: test_moods[0].weight = test_moods[1].weight = 0; break;
+    case 1: test_mood.hue_lo = 400; break;
+    case 2: test_mood.roles[SLEEVE_MID].light_hi = 1200; break;
+    case 3: test_mood.roles[SLEEVE_ACCENT].chroma_hi = 10; break;
+    case 4: test_mood.exact[SLEEVE_DEEP].a = 7; break;
+    case 5: test_parts[0].weight = test_parts[1].weight = 0; break;
+    case 6: test_horizon.sun = 101; break;
+    case 7: test_horizon.sun_min = 1600; break;
+    case 8: test_parts[1].run = 0; break;
+    case 9: test_parts[1].name = 0; break;
+    case 10: test_finishers[0].layers = 1; break;
+    case 11: s->finisher_count = 4; break;
+    case 12: s->mood_count = 33; break;
+    case 13: test_row[0] = 0; break;
+    case 14: test_parts[1].run = sleeve_palette_tint; break;
+    case 15: test_moods[0].mood = 0; break;
+    default: s->palette_hooks = 0, s->palette_hook_count = 2; break;
+    }
+    if (sleeve_style_check(s, reason, sizeof reason) == 0) {
+      if (ok) snprintf(detail, sizeof detail, "accepted a style that should fail with \"%s\"",
+                       expected[i]);
+      ok = 0;
+    } else if (!strstr(reason, expected[i])) {
+      if (ok) snprintf(detail, sizeof detail, "refused for \"%s\", expected \"%s\"", reason,
+                       expected[i]);
+      ok = 0;
+    } else {
+      refused++;
+    }
+  }
+  for (i = 0; i < 5; i++) {
+    const sleeve_style *s = i < 4 ? valid[i] : fresh_style();
+    if (sleeve_style_check(s, reason, sizeof reason) == 0 && reason[0] == 0) accepted++;
+    else if (ok) {
+      snprintf(detail, sizeof detail, "refused the valid style %s: %s", s->name, reason);
+      ok = 0;
+    }
+  }
+  if (sleeve_style_check(&empty, reason, sizeof reason) == 0) accepted++;
+  else if (ok) snprintf(detail, sizeof detail, "refused the empty style: %s", reason), ok = 0;
+  fresh_style();
+  test_horizon.sun = 101;
+  if (sleeve_style_check(&test_style, tiny, sizeof tiny) == 0 || strlen(tiny) != sizeof tiny - 1) {
+    if (ok) snprintf(detail, sizeof detail, "a reason cut to a small capacity is not terminated");
+    ok = 0;
+  }
+  if (ok) snprintf(detail, sizeof detail, "%d invalid styles refused, each for its reason; the "
+                   "default, example, empty and a full test style (%d) accepted; a reason cut "
+                   "short stays terminated", refused, accepted);
+  report("style-check", ok, detail);
+}
+
+/* Equal styles fingerprint equal, any change that decides covers changes the fingerprint, and
+   names do not. */
+static void check_style_hash(void) {
+  static const char *const changes[] = {
+    "a mood's weight", "a role's lightness range", "an exact colour", "a mood's composition weight",
+    "a composition's weight", "a built-in's parameter", "a finisher's parameter",
+    "the layers a finisher keeps", "an added finisher", "a palette hook's parameter",
+    "a code hook's name", "a code hook's version", "the order of compositions",
+  };
+  static const sleeve_frame_params thin = {SLEEVE_PALE, 255, 300};
+  static const sleeve_tint_params cool = {0xa0c0f0, 200};
+  const int n = (int)(sizeof changes / sizeof changes[0]);
+  sleeve_style_mood moods[SLEEVE_MOODS];
+  sleeve_style_part parts[SLEEVE_COMPOSITIONS], swapped[2];
+  sleeve_style declared;
+  sleeve_horizon_params defaults;
+  uint64_t base;
+  char detail[512];
+  const char *failed = 0, *unchanged = 0;
+  int i;
+  declared_default(&declared, moods, parts);
+  if (sleeve_style_hash(&declared) != sleeve_style_hash(&sleeve_default_style))
+    failed = "the default style declared from names fingerprints apart from it";
+  base = sleeve_style_hash(fresh_style());
+  defaults = *(const sleeve_horizon_params *)sleeve_find_piece(SLEEVE_COMPOSE, "horizon")->defaults;
+  test_parts[0].params = &defaults;
+  if (!failed && sleeve_style_hash(&test_style) != base)
+    failed = "default parameters written out fingerprint apart from the same as NULL";
+  test_parts[0].params = 0;
+  if (!failed && sleeve_style_hash(&test_style) != base)
+    failed = "NULL parameters fingerprint apart from the defaults written out";
+  fresh_style();
+  test_style.name = "renamed";
+  test_mood.name = "renamed";
+  if (!failed && sleeve_style_hash(&test_style) != base)
+    failed = "renaming the style or a mood changed the fingerprint";
+  for (i = 0; i < n && !failed && !unchanged; i++) {
+    fresh_style();
+    switch (i) {
+    case 0: test_moods[0].weight = 3; break;
+    case 1: test_mood.roles[SLEEVE_PALE].light_lo += 1; break;
+    case 2: test_mood.exact[SLEEVE_ACCENT] = hex(0xfca311); break;
+    case 3: test_row[1] = 1; break;
+    case 4: test_parts[0].weight = 4; break;
+    case 5: test_horizon.night = 41; break;
+    case 6: test_finishers[0].params = &thin; break;
+    case 7: test_finishers[0].layers = 3; break;
+    case 8: test_style.finisher_count = 2; break;
+    case 9: test_hooks[0].params = &cool; break;
+    case 10: test_parts[1].name = "ringed-2"; break;
+    case 11: test_parts[1].version = 2; break;
+    default:
+      swapped[0] = test_parts[1], swapped[1] = test_parts[0];
+      test_style.compositions = swapped;
+      break;
+    }
+    if (sleeve_style_hash(&test_style) == base) unchanged = changes[i];
+  }
+  if (failed) snprintf(detail, sizeof detail, "%s", failed);
+  else if (unchanged)
+    snprintf(detail, sizeof detail, "changing %s left the fingerprint as it was", unchanged);
+  else snprintf(detail, sizeof detail, "equal styles fingerprint equal, NULL parameters as the "
+                "defaults and names aside; each of %d changes that decide covers changes it", n);
+  report("style-hash", !failed && !unchanged, detail);
+}
+
+/* ---- A palette given for the call ---- */
+
+static int lightness_of(sleeve_colour c) {
+  int32_t l, ch, h;
+  sleeve_to_oklch(c, &l, &ch, &h);
+  return l;
+}
+
+/* A given palette's colours are assigned to the roles by lightness and chroma whatever their
+   order, empty roles are derived from them, and the cover keeps them. */
+static void check_given_palette(void) {
+  static const uint32_t five[5] = {0x5c677d, 0xf4f4f0, 0xd62828, 0x101010, 0xc9b79c};
+  sleeve_colour in[SLEEVE_MAX_GIVEN + 1], roles[5], first[5];
+  sleeve_style_part bars[1] = {{"bars", sleeve_compose_bars, 0, 1, 0, 0}};
+  sleeve_style only_bars = {"bars", 0, 0, bars, 1, 0, 0, 0, 0};
+  const char *failed = 0;
+  char detail[512], text[4096];
+  int i, k, perm[5] = {0, 1, 2, 3, 4}, permutations = 0;
+  /* five colours: deep, pale, accent and mid given; the second accent derived */
+  for (i = 0; i < 5; i++) in[i] = hex(five[i]);
+  sleeve_assign_palette(in, 5, first);
+  if (!same_colour(first[SLEEVE_DEEP], hex(0x101010)) ||
+      !same_colour(first[SLEEVE_PALE], hex(0xf4f4f0)) ||
+      !same_colour(first[SLEEVE_ACCENT], hex(0xd62828)) ||
+      !same_colour(first[SLEEVE_MID], hex(0x5c677d)))
+    failed = "five colours: deep is not the darkest, pale the lightest, the accent the most "
+             "chromatic or mid the nearest the middle";
+  for (i = 0; i < 5 && !failed; i++)
+    if (same_colour(first[SLEEVE_ACCENT2], in[i]))
+      failed = "five colours: a grey sand was taken as the second accent";
+  /* every order of the five gives the same roles */
+  for (;;) {
+    int j, l, t;
+    for (i = 0; i < 5; i++) in[i] = hex(five[perm[i]]);
+    sleeve_assign_palette(in, 5, roles);
+    if (memcmp(roles, first, sizeof roles) != 0 && !failed)
+      failed = "the roles depend on the colours' order";
+    permutations++;
+    for (j = 3; j >= 0 && perm[j] > perm[j + 1]; j--) {}
+    if (j < 0) break;
+    for (l = 4; perm[l] < perm[j]; l--) {}
+    t = perm[j], perm[j] = perm[l], perm[l] = t;
+    for (l = j + 1, k = 4; l < k; l++, k--) t = perm[l], perm[l] = perm[k], perm[k] = t;
+  }
+  /* one colour: a saturated red is the accent, the rest its tones */
+  in[0] = hex(0xd62828);
+  sleeve_assign_palette(in, 1, roles);
+  if (!failed && (!same_colour(roles[SLEEVE_ACCENT], in[0]) ||
+                  lightness_of(roles[SLEEVE_DEEP]) > 300 ||
+                  lightness_of(roles[SLEEVE_PALE]) < 900 ||
+                  lightness_of(roles[SLEEVE_MID]) <= lightness_of(roles[SLEEVE_DEEP]) ||
+                  lightness_of(roles[SLEEVE_MID]) >= lightness_of(roles[SLEEVE_PALE])))
+    failed = "one red: it is not the accent over darker, lighter and middle tones";
+  for (i = 0; i < 5 && !failed; i++) {
+    int32_t l, ch, h, l0, ch0, h0;
+    sleeve_to_oklch(roles[i], &l, &ch, &h);
+    sleeve_to_oklch(in[0], &l0, &ch0, &h0);
+    if (ch >= 30 && hue_distance(h, h0) > 10) failed = "one red: a derived role left its hue";
+  }
+  in[0] = hex(0x1d3557);
+  sleeve_assign_palette(in, 1, roles);
+  if (!failed && !same_colour(roles[SLEEVE_DEEP], in[0])) failed = "one navy is not deep";
+  in[0] = hex(0xf1e3c8);
+  sleeve_assign_palette(in, 1, roles);
+  if (!failed && !same_colour(roles[SLEEVE_PALE], in[0])) failed = "one cream is not pale";
+  in[0] = hex(0x000000), in[1] = hex(0xffffff);
+  sleeve_assign_palette(in, 2, roles);
+  if (!failed) {
+    int32_t l, ch, h;
+    sleeve_to_oklch(roles[SLEEVE_MID], &l, &ch, &h);
+    if (!same_colour(roles[SLEEVE_DEEP], in[0]) || !same_colour(roles[SLEEVE_PALE], in[1]) ||
+        ch > 10)
+      failed = "black and white are not deep and pale with a grey between";
+  }
+  /* counts, alpha, and the cover */
+  for (i = 0; i <= SLEEVE_MAX_GIVEN; i++) {
+    in[i] = hex(0x102030 + 0x0a0a0a * (uint32_t)i);
+    in[i].a = 0;
+  }
+  {
+    sleeve_cover c, before;
+    memset(&c, 0x5a, sizeof c);
+    before = c;
+    if (!failed && (sleeve_generate_with_palette(1, 0, in, 0, &c) != -1 ||
+                    sleeve_generate_with_palette(1, 0, in, SLEEVE_MAX_GIVEN + 1, &c) != -1 ||
+                    !same_cover(&c, &before) || sleeve_assign_palette(in, 0, roles) != -1))
+      failed = "0 or 17 colours were not refused with the cover untouched";
+    if (!failed && sleeve_generate_with_palette(1, 0, in, SLEEVE_MAX_GIVEN, &c) != 0)
+      failed = "16 colours were refused";
+    for (k = 0; k < 5 && !failed; k++)
+      if (c.palette[k].a != 255) failed = "a given colour's alpha was kept";
+    for (i = 0; i < 300 && !failed; i++) {
+      for (k = 0; k < 5; k++) in[k] = hex(five[k]);
+      sleeve_generate_with_palette((uint64_t)i, &only_bars, in, 5, &c);
+      sleeve_describe_styled(&c, &only_bars, text, sizeof text);
+      if (memcmp(c.palette, first, sizeof first) != 0)
+        failed = "the cover's palette is not the colours as assigned";
+      else if (c.mood != SLEEVE_NO_MOOD || strncmp(text, "sleeve 1 bars given\n", 20) != 0)
+        failed = "a cover from a given palette is not of mood \"given\"";
+      else if (c.composition != 0 || sleeve_check(&c))
+        failed = "the composition did not follow the style";
+      sleeve_generate_with_palette((uint64_t)i, &riso_style, in, 5, &c);
+      if (!failed && memcmp(c.palette, first, sizeof first) != 0)
+        failed = "a style's palette hook ran on a given palette";
+    }
+  }
+  if (failed) snprintf(detail, sizeof detail, "%s", failed);
+  else snprintf(detail, sizeof detail, "five colours take their roles in all %d orders; one red, "
+                "one navy, one cream, and black with white take theirs, with tones derived; 0 "
+                "and 17 colours refused; covers keep the colours as assigned, of mood \"given\", "
+                "composed by the style without its palette hooks", permutations);
+  report("given-palette", !failed, detail);
+}
+
+/* ---- Determinism per style ---- */
+
+#define STYLE_DIGEST_SEEDS 2000
+
+/* A style using every built-in palette hook and finisher, as the goldens' last style. */
+static const sleeve_style_part every_hook[5] = {
+  {"tint", sleeve_palette_tint, 0, 0, 0, 0}, {"chroma", sleeve_palette_chroma, 0, 0, 0, 0},
+  {"lightness", sleeve_palette_lightness, 0, 0, 0, 0},
+  {"monochrome", sleeve_palette_monochrome, 0, 0, 0, 0},
+  {"duotone", sleeve_palette_duotone, 0, 0, 0, 0},
+};
+static const sleeve_style_part every_finisher[4] = {
+  {"vignette", sleeve_finish_vignette, 0, 0, 1, 0}, {"wash", sleeve_finish_wash, 0, 0, 1, 0},
+  {"frame", sleeve_finish_frame, 0, 0, 2, 0}, {"lines", sleeve_finish_lines, 0, 0, 1, 0},
+};
+
+static size_t styles_text(char *out, size_t capacity) {
+  static const uint32_t album[5] = {0x264653, 0x2a9d8f, 0xe9c46a, 0xf4a261, 0xe76f51};
+  sleeve_style hooks = {"hooks", 0, 0, 0, 0, every_hook, 4, every_finisher, 4};
+  sleeve_style duotone = {"duotone", 0, 0, 0, 0, every_hook + 4, 1, 0, 0};
+  const sleeve_style *styles[EXAMPLE_STYLES + 2];
+  sleeve_colour colours[5];
+  size_t n = 0;
+  int s, i, k, count = 0;
+  char line[8192];
+  for (s = 0; s < EXAMPLE_STYLES; s++) styles[count++] = example_styles[s];
+  styles[count++] = &hooks;
+  styles[count++] = &duotone;
+  for (k = 0; k < 5; k++) colours[k] = hex(album[k]);
+  for (s = 0; s < count + 2; s++) {
+    const sleeve_style *style = s < count ? styles[s] : (s == count ? &sleeve_default_style
+                                                                    : &gallery_style);
+    uint64_t digest = 0xcbf29ce484222325ull;
+    for (i = 0; i < STYLE_DIGEST_SEEDS; i++) {
+      sleeve_cover c;
+      if (s < count) sleeve_generate_styled((uint64_t)i, style, &c);
+      else sleeve_generate_with_palette((uint64_t)i, style, colours, 5, &c);
+      digest = fnv(digest, line, sleeve_describe_styled(&c, style, line, sizeof line));
+    }
+    n += (size_t)snprintf(out + n, capacity - n,
+                          "%s%s: fingerprint %016llx, seeds 0 to %d %016llx\n", style->name,
+                          s < count ? "" : " with a given palette",
+                          (unsigned long long)sleeve_style_hash(style), STYLE_DIGEST_SEEDS - 1,
+                          (unsigned long long)digest);
+  }
+  return n;
+}
+
+/* Each style draws the same descriptions and fingerprint as its golden, whatever the cover
+   held before. */
+static void check_style_determinism(void) {
+  static char text[1 << 14];
+  char path[1024], detail[512];
+  size_t n = styles_text(text, sizeof text), m = 0, i, line = 1;
+  char *golden;
+  int s, seed, stale = -1;
+  snprintf(path, sizeof path, "%s/styles.txt", golden_dir);
+  if (write_goldens) {
+    report("style-determinism", write_file(path, text, n), "written");
+    return;
+  }
+  for (s = 0; s < EXAMPLE_STYLES && stale < 0; s++)
+    for (seed = 0; seed < 200 && stale < 0; seed++) {
+      sleeve_cover a, b;
+      memset(&a, 0x00, sizeof a);
+      memset(&b, 0xa5, sizeof b);
+      sleeve_generate_styled((uint64_t)seed, example_styles[s], &a);
+      sleeve_generate_styled((uint64_t)seed, example_styles[s], &b);
+      if (!same_cover(&a, &b)) stale = s;
+    }
+  golden = read_file(path, &m);
+  if (!golden) {
+    report("style-determinism", 0, "no golden file");
+    return;
+  }
+  for (i = 0; i < n && i < m && text[i] == golden[i]; i++)
+    if (text[i] == '\n') line++;
+  if (stale >= 0)
+    snprintf(detail, sizeof detail, "style %s draws different bytes over different old covers",
+             example_styles[stale]->name);
+  else if (i != n || n != m)
+    snprintf(detail, sizeof detail, "differs from the golden file at line %zu", line);
+  else
+    snprintf(detail, sizeof detail, "%d seeds each of the example styles, every built-in hook, "
+             "and given palettes equal their golden digests and fingerprints, whatever the cover "
+             "held before", STYLE_DIGEST_SEEDS);
+  report("style-determinism", stale < 0 && i == n && n == m, detail);
+  free(golden);
+}
+
+static const struct {
+  const char *name;
+  void (*run)(void);
+  int golden; /* writes a golden file under --write-goldens */
+} checks[] = {
+  {"descriptions", check_descriptions, 1}, {"rasters", check_rasters, 1},
+  {"antialiasing", check_antialiasing, 0}, {"png", check_png, 0}, {"svg", check_svg, 0},
+  {"variety", check_variety, 0}, {"api", check_api, 0}, {"default-style", check_default_style, 0},
+  {"style-shares", check_style_shares, 0}, {"style-hooks", check_style_hooks, 0},
+  {"builder", check_builder, 0}, {"containment", check_containment, 0},
+  {"style-check", check_style_check, 0}, {"style-hash", check_style_hash, 0},
+  {"given-palette", check_given_palette, 0},
+  {"style-determinism", check_style_determinism, 1},
+};
+#define CHECKS ((int)(sizeof checks / sizeof checks[0]))
+
 int main(int argc, char **argv) {
-  const char *only[16];
+  const char *only[CHECKS];
   int n_only = 0, i;
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--golden") == 0 && i + 1 < argc) golden_dir = argv[++i];
     else if (strcmp(argv[i], "--scratch") == 0 && i + 1 < argc) scratch_dir = argv[++i];
     else if (strcmp(argv[i], "--write-goldens") == 0) write_goldens = 1;
     else if (strcmp(argv[i], "--require-svg") == 0) require_svg = 1;
-    else if (argv[i][0] != '-' && n_only < 16) only[n_only++] = argv[i];
+    else if (argv[i][0] != '-' && n_only < CHECKS) only[n_only++] = argv[i];
     else {
       fprintf(stderr, "usage: check [--golden DIR] [--scratch DIR] [--require-svg] "
                       "[--write-goldens] [CHECK...]\n");
       return 2;
     }
   }
-  for (i = 0; i < 7; i++) {
-    static const char *const names[7] = {"descriptions", "rasters", "antialiasing", "png",
-                                         "svg", "variety", "api"};
+  for (i = 0; i < CHECKS; i++) {
     int k, want = n_only == 0;
     for (k = 0; k < n_only; k++)
-      if (strcmp(only[k], names[i]) == 0) want = 1;
-    if (!want) continue;
-    if (write_goldens && i > 1) continue;
-    switch (i) {
-    case 0: check_descriptions(); break;
-    case 1: check_rasters(); break;
-    case 2: check_antialiasing(); break;
-    case 3: check_png(); break;
-    case 4: check_svg(); break;
-    case 5: check_variety(); break;
-    default: check_api(); break;
-    }
+      if (strcmp(only[k], checks[i].name) == 0) want = 1;
+    if (!want || (write_goldens && !checks[i].golden)) continue;
+    checks[i].run();
   }
   return failures ? 1 : 0;
 }

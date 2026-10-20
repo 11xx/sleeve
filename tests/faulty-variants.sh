@@ -75,15 +75,53 @@ variant circles-for-ellipses svg \
   'if (l->ex != l->ey) {' \
   'if (0) {'
 variant unweighted-compositions variety \
-  'composition = row ? sleeve__pick(&b.rng, row, s.composition_count)
-              : sleeve__pick_part(&b.rng, s.compositions, s.composition_count);' \
-  'composition = row ? sleeve__below(&b.rng, s.composition_count)
-              : sleeve__below(&b.rng, s.composition_count);'
+  '  for (i = 0; i < n; i++) total += parts[i].weight;
+  x = sleeve__below(r, total);' \
+  '  for (i = 0; i < n; i++) total += parts[i].weight;
+  return sleeve__below(r, n);
+  x = sleeve__below(r, total);'
 variant unmixed-seeds variety \
   'b.rng.state = sleeve__mix(seed ^ 0x736c65657665ull);' \
   'b.rng.state = seed;'
 variant translucent-base api \
   'if (cover->layer_count > SLEEVE_MAX_LAYERS || cover->base.a != 255) return -1;' \
   'if (cover->layer_count > SLEEVE_MAX_LAYERS) return -1;'
+
+variant rows-only-for-the-default default-style \
+  'p->rows = style->mood_count > 0 || style->composition_count <= 0;' \
+  'p->rows = style == d;'
+variant first-weight-inclusive style-shares \
+  'if (x < parts[i].weight) return i;' \
+  'if (x <= parts[i].weight) return i;'
+variant last-palette-hook-skipped style-hooks \
+  'for (i = 0; i < s.palette_hook_count; i++)
+      if (s.palette_hooks[i].run)' \
+  'for (i = 0; i + 1 < s.palette_hook_count; i++)
+      if (s.palette_hooks[i].run)'
+variant open-disc builder \
+  '  sleeve__add_band(l, 0, r, c);
+  sleeve__add_stop(l, r, sleeve__alpha(c, 0));' \
+  '  sleeve__add_band(l, 0, r, c);'
+variant no-layers-kept-for-finishers containment \
+  'b.limit = SLEEVE_MAX_LAYERS - reserved;' \
+  'b.limit = SLEEVE_MAX_LAYERS + 0 * reserved;'
+variant invalid-layers-kept containment \
+  'if (style != &sleeve_default_style && !sleeve__trusted(&s, part)) {' \
+  'if (0 && !sleeve__trusted(&s, part)) {'
+variant at-most-ignored style-check \
+  'if (p->at_most >= 0 && v[i] > v[p->at_most]) {' \
+  'if (0 && v[i] > v[p->at_most]) {'
+variant version-unhashed style-hash \
+  '    h = sleeve__hash_int(h, part->version);
+' \
+  ''
+variant deep-is-the-lightest given-palette \
+  '    if (best < 0 || l[i] < l[best]) best = i;
+  if (l[best] <= 450)' \
+  '    if (best < 0 || l[i] > l[best]) best = i;
+  if (l[best] <= 450)'
+variant duotone-rounded-down style-determinism \
+  '(int32_t)sleeve__div_round((int64_t)(l[i] - lo) * 1000, hi - lo) : 500;' \
+  '(int32_t)((int64_t)(l[i] - lo) * 1000 / (hi - lo)) : 500;'
 
 exit "$failed"

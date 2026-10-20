@@ -1,0 +1,8 @@
+default: fingerprint 15a46aaa23eb9849, seeds 0 to 1999 579b15866780928c
+riso: fingerprint 70eaf05cbb6af4ca, seeds 0 to 1999 f2156b4017a28bef
+brand: fingerprint 86a72312c646ea32, seeds 0 to 1999 703d752073401435
+gallery: fingerprint 7ba13c2b94b47df7, seeds 0 to 1999 6e53651d2d4f8dbb
+hooks: fingerprint e39d193426e7c868, seeds 0 to 1999 88f1c011fd655f0a
+duotone: fingerprint 249ab9a61930c7d6, seeds 0 to 1999 dc33be592326102a
+default with a given palette: fingerprint 15a46aaa23eb9849, seeds 0 to 1999 dc628c3c4c3925ca
+gallery with a given palette: fingerprint 7ba13c2b94b47df7, seeds 0 to 1999 601815e195ae357e

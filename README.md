@@ -42,7 +42,8 @@ sleeve_render(&cover, 256, 256, pixels, 256 * 4);
 ## The description
 
 Lengths are integers in units of the cover's side, `SLEEVE_UNIT` (10000) being the whole side;
-angles are whole degrees. Each layer paints over everything before it:
+angles are whole degrees, any `int32_t` drawing as its equal in [0, 360). Each layer paints
+over everything before it:
 
 - **linear** is CSS's `linear-gradient`: its line runs through the centre at `angle` degrees
   clockwise from straight up, `|sin| + |cos|` sides long, and a stop's `at` is its distance
@@ -401,6 +402,7 @@ repository's root runs `make check`.
 | svg | 48 covers rendered by `rsvg-convert` at 16× and averaged down are within mean 0.6, 0.2 % of channels beyond 8, worst 48 of the raster (skipped without a renderer) | circles drawn for ellipses |
 | variety | over 20,000 seeds, compositions and moods keep their shares within 12 %, runs of neighbouring seeds look random, palettes cover the hue circle, no two covers repeat, and neighbouring seeds look different | uniform composition weights; unmixed seeds |
 | api | row ranges equal the whole raster, invalid inputs are refused, sizing calls agree, the hash is fixed | a translucent base |
+| extremes | angles from `INT32_MIN` to `INT32_MAX` draw and write as their equals in [0, 360); a gradient line 100 sides long is written at its exact ends; PNG sizes beyond 16384 are refused; a repeating ellipse 100 sides from its centre draws 1 × 16384 within 20 s | an angle's sine taken before reducing it; SVG decimals scaled whole; repeating periods counted in floats |
 | default-style | the default style through the styled call, declared from names as a skin compiler would, and with every part empty, each draw `sleeve_generate`'s bytes for 20,000 seeds and share its fingerprint | moods' own composition weights applied only in the default style itself |
 | style-shares | a style of 3 moods and 4 compositions draws them in its declared shares over 20,000 seeds, a mood's own composition weights apply under it, and names come through the style | the first weight counted one too many |
 | style-hooks | each built-in palette hook changes the palette the composition draws from, in order, and not a given palette; each finisher paints on top | the last palette hook skipped |

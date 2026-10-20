@@ -2,7 +2,8 @@
 
    usage: check [--golden DIR] [--scratch DIR] [--require-svg] [--write-goldens] [CHECK...]
 
-   CHECK is any of descriptions, rasters, antialiasing, png, svg, variety, api, default-style,
+   CHECK is any of descriptions, rasters, antialiasing, png, svg, variety, api, extremes,
+   default-style,
    style-shares, style-hooks, builder, containment, style-check, style-hash, given-palette and
    style-determinism; all by default.
    --golden names the directory of golden files (tests/golden by default); --write-goldens
@@ -10,6 +11,7 @@
    (the system's temporary directory by default). The SVG check renders with rsvg-convert, or
    the command SLEEVE_SVG_RENDERER names; without one it is skipped unless --require-svg. */
 
+#define _POSIX_C_SOURCE 200809L
 #define SLEEVE_IMPLEMENTATION
 #include "sleeve.h"
 #include "../tools/styles.h"
@@ -18,10 +20,13 @@
 #define STBI_ONLY_PNG
 #include "stb_image.h"
 
+#include <limits.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static const char *golden_dir = "tests/golden";
 static const char *scratch_dir = 0;
@@ -803,6 +808,117 @@ static void check_api(void) {
   /* the hash is stable */
   if (sleeve_hash("", 0) != HASH_EMPTY || sleeve_hash("sleeve", 6) != HASH_SLEEVE) ok = 0;
   report("api", ok, "row ranges equal the whole; refusals; sizing calls; the hash's values");
+}
+
+/* ---- Extremes -------------------------------------------------------------------------- */
+
+/* A hand-written cover of one layer of a kind, red at 0 to blue at a side. */
+static sleeve_cover one_layer(int kind) {
+  sleeve_cover c;
+  sleeve_layer *l = &c.layers[0];
+  memset(&c, 0, sizeof c);
+  c.base.a = 255;
+  c.layer_count = 1;
+  l->kind = (uint8_t)kind;
+  l->stop_count = 2;
+  l->cx = l->cy = 0;
+  l->ex = l->ey = SLEEVE_UNIT;
+  l->stops[0].colour.r = l->stops[0].colour.a = 255;
+  l->stops[1].colour.b = l->stops[1].colour.a = 255;
+  l->stops[1].at = SLEEVE_UNIT;
+  return c;
+}
+
+/* What a check that has not finished by its deadline was doing. */
+static const char *deadline_what = "";
+
+static void deadline_passed(int sig) {
+  static const char head[] = "FAIL extremes: did not finish within 20 s: ";
+  ssize_t written = write(1, head, sizeof head - 1);
+  written += write(1, deadline_what, strlen(deadline_what));
+  written += write(1, "\n", 1);
+  (void)sig;
+  (void)written;
+  _exit(1);
+}
+
+/* Descriptions at the edges of what sleeve_check accepts draw and write what they mean: any
+   angle as itself modulo 360, a gradient line 100 sides long at its exact SVG coordinates,
+   and a repeating ellipse far from its centre in bounded time; sizes beyond the writers' are
+   refused. */
+static void check_extremes(void) {
+  static const int32_t angles[] = {INT32_MIN, INT32_MIN + 1, -721, -90, 450, INT32_MAX};
+  static const int sizes[][2] = {{INT_MAX, 1}, {INT_MIN, 1}, {1, INT_MAX}, {INT_MAX, INT_MAX}};
+  static uint8_t column[16384 * 4];
+  static char svg[2][4096];
+  uint8_t pixels[2][6 * 6 * 4];
+  const char *failed = 0;
+  char detail[512];
+  size_t i, n;
+  int k;
+  /* any angle draws as the angle in [0, 360) it equals */
+  for (i = 0; i < sizeof angles / sizeof angles[0] && !failed; i++)
+    for (k = SLEEVE_LINEAR; k <= SLEEVE_RADIAL && !failed; k++) {
+      sleeve_cover c = one_layer(k), same = c;
+      c.layers[0].angle = angles[i];
+      same.layers[0].angle = (int32_t)(((int64_t)angles[i] % 360 + 360) % 360);
+      if (sleeve_check(&c) || sleeve_render(&c, 6, 6, pixels[0], 6 * 4) ||
+          sleeve_render(&same, 6, 6, pixels[1], 6 * 4) ||
+          memcmp(pixels[0], pixels[1], sizeof pixels[0]) != 0)
+        failed = "an angle beyond [0, 360) draws apart from its equal within it";
+      else if (sleeve_svg(&c, 6, 6, svg[0], sizeof svg[0]) >= sizeof svg[0] ||
+               sleeve_svg(&same, 6, 6, svg[1], sizeof svg[1]) >= sizeof svg[1] ||
+               strcmp(svg[0], svg[1]) != 0)
+        failed = "an angle beyond [0, 360) writes apart from its equal within it";
+      if (failed)
+        snprintf(detail, sizeof detail, "angle %ld: %s", (long)angles[i], failed);
+    }
+  /* a line to a stop 100 sides along, rightward and leftward */
+  for (k = 0; k < 2 && !failed; k++) {
+    static const char *const ends[2] = {" x1=\"0\" y1=\"5000\" x2=\"1000000\" y2=\"5000\"",
+                                        " x1=\"10000\" y1=\"5000\" x2=\"-990000\" y2=\"5000\""};
+    sleeve_cover c = one_layer(SLEEVE_LINEAR);
+    c.layers[0].angle = k ? 270 : 90;
+    c.layers[0].stops[1].at = 100 * SLEEVE_UNIT;
+    n = sleeve_svg(&c, 6, 6, 0, 0);
+    if (sleeve_check(&c) || n == 0 || sleeve_svg(&c, 6, 6, svg[0], sizeof svg[0]) != n ||
+        !strstr(svg[0], ends[k])) {
+      failed = "a gradient line 100 sides long is written at the wrong coordinates";
+      snprintf(detail, sizeof detail, "angle %d: %s, not%s", c.layers[0].angle, failed, ends[k]);
+    }
+  }
+  /* sizes beyond 16384 are refused before any arithmetic on them */
+  for (i = 0; i < sizeof sizes / sizeof sizes[0] && !failed; i++)
+    if (sleeve_png_bound(sizes[i][0], sizes[i][1]) != 0 ||
+        sleeve_png(column, sizes[i][0], sizes[i][1], 4, column, sizeof column) != 0) {
+      failed = "a PNG size beyond 16384 is not refused";
+      snprintf(detail, sizeof detail, "%d x %d: %s", sizes[i][0], sizes[i][1], failed);
+    }
+  /* a repeating ellipse 100 sides from its centre, 10^6 times wider than tall, over 1 x 16384 */
+  if (!failed) {
+    sleeve_cover c = one_layer(SLEEVE_RADIAL);
+    sleeve_layer *l = &c.layers[0];
+    l->repeating = 1;
+    l->cy = -100 * SLEEVE_UNIT;
+    l->ex = 100 * SLEEVE_UNIT;
+    l->ey = 1;
+    l->stops[1].at = 5 * SLEEVE_UNIT;
+    deadline_what = "a repeating ellipse 100 sides from its centre over 1 x 16384 pixels";
+    fflush(stdout);
+    signal(SIGALRM, deadline_passed);
+    alarm(20);
+    if (sleeve_check(&c) || sleeve_render(&c, 1, 16384, column, 4)) {
+      failed = "a repeating ellipse far from its centre was refused";
+      snprintf(detail, sizeof detail, "%s", failed);
+    }
+    alarm(0);
+  }
+  if (!failed)
+    snprintf(detail, sizeof detail, "%d angles from INT32_MIN to INT32_MAX draw and write as "
+             "their equals in [0, 360); a line 100 sides long is written at its exact ends; "
+             "PNG sizes beyond 16384 are refused; a repeating ellipse 100 sides off draws "
+             "1 x 16384 within 20 s", (int)(sizeof angles / sizeof angles[0]));
+  report("extremes", !failed, detail);
 }
 
 /* ---- Styles ---------------------------------------------------------------------------- */
@@ -1712,7 +1828,8 @@ static const struct {
 } checks[] = {
   {"descriptions", check_descriptions, 1}, {"rasters", check_rasters, 1},
   {"antialiasing", check_antialiasing, 0}, {"png", check_png, 0}, {"svg", check_svg, 0},
-  {"variety", check_variety, 0}, {"api", check_api, 0}, {"default-style", check_default_style, 0},
+  {"variety", check_variety, 0}, {"api", check_api, 0},
+  {"extremes", check_extremes, 0}, {"default-style", check_default_style, 0},
   {"style-shares", check_style_shares, 0}, {"style-hooks", check_style_hooks, 0},
   {"builder", check_builder, 0}, {"containment", check_containment, 0},
   {"style-check", check_style_check, 0}, {"style-hash", check_style_hash, 0},

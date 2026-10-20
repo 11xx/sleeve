@@ -66,7 +66,7 @@ typedef struct sleeve_layer {
   uint8_t repeating;   /* 0 or 1 */
   uint8_t stop_count;  /* 1 to SLEEVE_MAX_STOPS; 2 for a checker */
   uint8_t reserved;    /* 0 */
-  int32_t angle;       /* linear: degrees */
+  int32_t angle;       /* linear: degrees, any, as its equal in [0, 360) */
   int32_t cx, cy;      /* radial: centre; checker: a corner */
   int32_t ex, ey;      /* radial: shape, both positive; checker: ex is the square's side */
   sleeve_stop stops[SLEEVE_MAX_STOPS];
@@ -583,14 +583,15 @@ static int32_t sleeve__cos(int32_t d) {
   return sleeve__cos_table[360 - d];
 }
 
-static int32_t sleeve__sin(int32_t d) { return sleeve__cos(90 - d); }
+static int32_t sleeve__sin(int32_t d) { return sleeve__cos(90 - d % 360); }
 
 static int32_t sleeve__abs(int32_t v) { return v < 0 ? -v : v; }
 
-/* n / d rounded to the nearest, halves up, for d > 0. */
+/* n / d rounded to the nearest, halves up, for d > 0: q + r / d, with r / d in (-1, 1). */
 static int64_t sleeve__div_round(int64_t n, int64_t d) {
-  int64_t q = (2 * n + d) / (2 * d), r = (2 * n + d) % (2 * d);
-  return r < 0 ? q - 1 : q;
+  int64_t q = n / d, r = n % d;
+  if (r >= 0) return r >= d - r ? q + 1 : q;
+  return -r > d + r ? q - 1 : q;
 }
 
 /* The length of a linear gradient's line at this angle, in side units. */
@@ -2172,19 +2173,23 @@ static void sleeve__sample(const sleeve__ready *g, float t, float a, float b, fl
     sleeve__kernel k;
     float acc[4] = {0, 0, 0, 0};
     if (b < a * 1e-4f) b = 0;
-    k.t = t;
+    /* a repeating gradient is integrated around `local`, so the periods are small whole numbers */
+    k.t = g->repeating ? local : t;
     k.h1 = 0.5f * (a + b);
     k.h2 = 0.5f * (a - b);
     k.inv_a = 1.0f / a;
     k.inv_ab = b > 0 ? 1.0f / (a * b) : 0;
     if (g->repeating) {
-      float first = sleeve__floor((t - k.h1) / g->period);
-      float last = sleeve__floor((t + k.h1) / g->period);
-      if (last - first > 32) {
+      float first = sleeve__floor((local - k.h1) / g->period);
+      float last = sleeve__floor((local + k.h1) / g->period);
+      int period, periods;
+      if (!(last - first <= 32 && first >= -1048576.0f && last <= 1048576.0f)) {
         for (ch = 0; ch < 4; ch++) out[ch] = g->mean[ch];
         return;
       }
-      for (; first <= last; first += 1) sleeve__pieces(g, &k, first * g->period, acc);
+      periods = (int)(last - first);
+      for (period = (int)first; periods >= 0; period++, periods--)
+        sleeve__pieces(g, &k, (float)period * g->period, acc);
     } else {
       sleeve__pieces(g, &k, 0, acc);
     }
@@ -2389,12 +2394,13 @@ static void sleeve__int(sleeve__text *t, int64_t v) {
   while (n) sleeve__put(t, digits[--n]);
 }
 
-/* num / den, for den > 0, rounded to `places` decimals with trailing zeros dropped. */
+/* num / den, for den > 0, rounded to `places` decimals with trailing zeros dropped. Only the
+   remainder is scaled, so the arithmetic fits wherever the decimals printed do. */
 static void sleeve__ratio(sleeve__text *t, int64_t num, int64_t den, int places) {
-  int64_t scale = 1, scaled, whole, frac;
+  int64_t scale = 1, scaled, whole = num / den, frac;
   int i;
   for (i = 0; i < places; i++) scale *= 10;
-  scaled = sleeve__div_round(num * scale, den);
+  scaled = whole * scale + sleeve__div_round(num % den * scale, den);
   if (scaled < 0) {
     sleeve__put(t, '-');
     scaled = -scaled;
@@ -3081,8 +3087,9 @@ size_t sleeve_png(const uint8_t *rgba, int width, int height, ptrdiff_t stride, 
   sleeve__bits b;
   size_t chunk, i;
   uint32_t adler_a = 1, adler_b = 0;
-  int y, x, n = width * 3, run = 0, previous = -1;
+  int y, x, n, run = 0, previous = -1;
   if (width < 1 || height < 1 || width > 16384 || height > 16384) return 0;
+  n = width * 3;
   b.out = out;
   b.capacity = capacity;
   b.length = 0;

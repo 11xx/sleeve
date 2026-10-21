@@ -223,6 +223,13 @@ variant glow-alpha-wrapped domains \
   'sleeve__add_glow(b, cx, cy, ex, ey, r, inner, c, alpha);'
 variant repeating-kept domains \
   'return sleeve__add_layer(b, kind, repeating != 0);' 'return sleeve__add_layer(b, kind, repeating);'
+variant null-style-refused style-check \
+  'if (!style) style = &sleeve_default_style;' 'if (!style) return sleeve__puts(t, "no style"), -1;'
+variant assigned-over-its-input given-palette \
+  '  for (i = 0; i < count; i++) given[i] = colours[i];
+  sleeve__assign(given, count, roles);' \
+  '  (void)given, (void)i;
+  sleeve__assign(colours, count, roles);'
 ub_variant png-width-multiplied-first extremes \
   '  int y, x, n, run = 0, previous = -1;
   if (width < 1 || height < 1 || width > 16384 || height > 16384) return 0;

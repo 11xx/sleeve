@@ -3,9 +3,8 @@
    usage: check [--golden DIR] [--scratch DIR] [--require-svg] [--write-goldens] [CHECK...]
 
    CHECK is any of descriptions, rasters, antialiasing, png, svg, variety, api, extremes,
-   default-style,
-   style-shares, style-hooks, builder, containment, style-check, style-hash, given-palette and
-   style-determinism; all by default.
+   default-style, style-shares, style-hooks, builder, containment, parameters, domains,
+   style-check, style-hash, given-palette and style-determinism; all by default.
    --golden names the directory of golden files (tests/golden by default); --write-goldens
    writes them instead of checking them. --scratch is where the SVG check writes its files
    (the system's temporary directory by default). The SVG check renders with rsvg-convert, or

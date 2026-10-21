@@ -55,7 +55,8 @@ sleeve checks every number it is given, and no pointer:
 The caller, a skin compiler or any other, provides what sleeve cannot check:
 
 - **Buffers.** `rgba` holds `height` rows `stride` bytes apart, each of `width × 4` bytes,
-  so `|stride|` is at least `width × 4`; a negative stride runs the rows upward from `rgba`.
+  so `|stride|` is at least `width × 4`; row `y` begins at `rgba + y × stride`, so a negative
+  stride lays the rows out upward from the first.
   Every row's offset, `y × stride`, fits a `ptrdiff_t`, and the buffer's size is computed
   without overflow (16384 × 16384 × 4 bytes is 1 GiB). `sleeve_render_rows` writes only its
   rows; `sleeve_png` reads every row. `out` holds `capacity` bytes, and is `NULL` only with a
@@ -440,14 +441,31 @@ script also needs Python 3.
 | WebAssembly | wasi-sdk's Clang | `clang --target=wasm32-wasi -std=c99 -O2 -o sleeve.wasm tools/sleeve.c -lm` |
 
 The library itself calls only `sqrtf`, as a compiler builtin, and needs `-lm` only when built
-without optimization. Built by GCC or Clang with `SLEEVE_NO_STDIO` defined, it depends on no
-C library at all.
+without optimization. Built by GCC or Clang with optimization and `SLEEVE_NO_STDIO` defined, it
+depends on no C library at all: `make freestanding` links every function of it for wasm32 at
+`-O2` with no C library and requires a module that imports nothing.
 
 ## Checks
 
-`make check` builds `build/check` and runs it; `make faults` shows each check failing on a
-deliberately faulty copy of `sleeve.h`, for the reason it predicts. `scripts/offline-gate` at the
-repository's root runs `make check`.
+`make check` builds `build/check` and runs it, then requires that the tool and the checks are
+rebuilt when `tools/styles.h` changes. `make faults` shows each check failing on a deliberately
+faulty copy of `sleeve.h`, for the reason it predicts.
+
+Undefined behaviour shows only under a sanitizer, so Clang builds the checks a second way:
+
+- `make sanitize` runs every check built with ASan and UBSan, overflow of a float's conversion
+  included and no error recovered from, within `SANITIZE_TIME` (600) seconds; the extremes
+  and domains checks also stop themselves after 20 s on a call that does not finish.
+- `make sanitize-faults` shows each fault that is undefined behaviour, such as an overflowing
+  sum of weights, caught by UBSan as a runtime error in the check that covers it.
+- `make fuzz` runs `tests/fuzz.c` under libFuzzer, ASan and UBSan for `FUZZ_TIME` (60) seconds,
+  keeping its corpus in `FUZZ_CORPUS`: hand-written layers at the edges of what `sleeve_check`
+  accepts, styles at the edges of what `sleeve_style_check` accepts, given palettes, and a code
+  hook calling every builder call with arbitrary arguments, each rendered and written into
+  buffers of any capacity.
+
+`scripts/offline-gate` at the repository's root runs `make check`, and `make sanitize` and `make
+freestanding` where Clang has the sanitizers and wasm-ld, saying which it skips.
 
 | Check | What it holds | Fails on |
 | --- | --- | --- |

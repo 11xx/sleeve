@@ -289,23 +289,25 @@ sample a !o !t' !a0 !b0
   | wide <= 0 = point a o local
   | otherwise =
       let !b' = if narrow < wide * 1e-4 then 0 else narrow
+          -- a repeating gradient is integrated around local, so the periods are small whole numbers
           !k  = Kernel
-                  { t     = t'
+                  { t     = if rep then local else t'
                   , h1    = 0.5 * (wide + b')
                   , h2    = 0.5 * (wide - b')
                   , invA  = 1 / wide
                   , invAb = if b' > 0 then 1 / (wide * b') else 0
                   }
-          !first = floorF ((t' - k.h1) / period)
-          !final = floorF ((t' + k.h1) / period)
-          periods !f !e0 !e1 !e2 !e3
-            | f <= final = case pieces a o k (f * period) (V4 e0 e1 e2 e3) of
-                V4 f0 f1 f2 f3 -> periods (f + 1) f0 f1 f2 f3
+          !first = floorF ((local - k.h1) / period)
+          !final = floorF ((local + k.h1) / period)
+          periods :: Int -> Int -> Float -> Float -> Float -> Float -> V4
+          periods !f !left !e0 !e1 !e2 !e3
+            | left >= 0 = case pieces a o k (fromIntegral f * period) (V4 e0 e1 e2 e3) of
+                V4 f0 f1 f2 f3 -> periods (f + 1) (left - 1) f0 f1 f2 f3
             | otherwise = V4 e0 e1 e2 e3
       in if not rep then pieces a o k 0 zero
-         else if final - first > 32
+         else if not (final - first <= 32 && first >= -1048576 && final <= 1048576)
            then V4 (fl a (o + meanF)) (fl a (o + meanF + 1)) (fl a (o + meanF + 2)) (fl a (o + meanF + 3))
-         else periods first 0 0 0 0
+         else periods (truncate first) (truncate (final - first)) 0 0 0 0
   where
     !wide   = if a0 < b0 then b0 else a0
     !narrow = if a0 < b0 then a0 else b0

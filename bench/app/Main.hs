@@ -141,6 +141,18 @@ check options = do
     putStrLn ("rasters at " <> show size <> " px: " <> show count <> " covers, largest difference " <> show largest
               <> ", " <> show differing <> " of " <> show (fromIntegral count * size * size * 4) <> " bytes differ")
     pure largest
+  extremes <- forM extremeCovers $ \(name, width, height, layout) -> do
+    d    <- newDescription
+    forM_ [0 .. words' - 1] $ \w -> writeWord d w 0
+    forM_ layout $ \(w, v) -> writeWord d w v
+    ours <- newBuffer (width * height * 4)
+    cs   <- newBuffer (width * height * 4)
+    okH  <- render scratch d width height ours
+    okC  <- renderC d width height cs
+    (largest, _) <- difference ours cs (width * height * 4)
+    putStrLn ("extreme " <> name <> " at " <> show width <> "x" <> show height <> ": rendered " <> show (okH, okC)
+              <> ", largest difference " <> show largest)
+    pure (okH == 0 && okC == 0 && largest <= 1)
   -- the comparisons must catch a neighbouring seed's description and a raster two levels off in one byte
   caughtDescriptions <- fmap and $ forM [0 .. 99] $ \seed -> do
     generate gen seed
@@ -157,9 +169,26 @@ check options = do
     (> 1) . fst <$> difference ours cs (64 * 64 * 4)
   putStrLn ("faults: a neighbouring seed's description " <> caught caughtDescriptions
             <> ", a raster two levels off in one byte " <> caught caughtRaster)
-  unless (null mismatches && all (<= 1) rasters && caughtDescriptions && caughtRaster) exitFailure
+  unless (null mismatches && all (<= 1) rasters && and extremes && caughtDescriptions && caughtRaster) exitFailure
   where
     caught b = if b then "caught" else "missed"
+
+{- | Valid covers no seed generates, at the edges of what the renderers
+accept: each a name, a size, and the words it sets in a zeroed description.
+-}
+extremeCovers :: [(String, Int, Int, [(Int, Int)])]
+extremeCovers =
+  [ -- distances near 2^24 side units, where a float cannot count periods one at a time
+    ( "far repeating radial", 1, 16384
+    , header <> [ (kindOf l, 2), (repeatingOf l, 1), (stopCountOf l, 2), (cxOf l, 0), (cyOf l, -1000000)
+                , (exOf l, 1000000), (eyOf l, 1)
+                , (stopAt l 0, 0), (stopColour l 0, opaque 0x203040), (stopAt l 1, 50000), (stopColour l 1, opaque 0xe0c0a0) ] )
+  ]
+  where
+    l = layerAt 0
+    header = [(3, 1), (5, opaque 0x101010)]
+    -- r | g << 8 | b << 16 with full alpha, as the word's signed 32 bits
+    opaque rgb = rgb - 0x1000000
 
 -- bench ----------------------------------------------------------------------------------------
 

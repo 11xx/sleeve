@@ -14,6 +14,7 @@
 uint32_t sleeve_bench_pack(sleeve_colour c);
 intptr_t sleeve_bench_describe(uint64_t seed, int32_t *out);
 intptr_t sleeve_bench_cover(uint64_t seed, intptr_t size, uint8_t *rgba);
+intptr_t sleeve_bench_render(const int32_t *words, intptr_t width, intptr_t height, uint8_t *rgba);
 uint64_t sleeve_bench_hash(const uint8_t *bytes, intptr_t length);
 
 #endif

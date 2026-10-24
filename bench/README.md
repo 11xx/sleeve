@@ -7,9 +7,10 @@ implementation of sleeve; it exists to be measured against the C.
 - `src/Sleeve/` is the port: `Generate` follows `sleeve_generate` draw for draw, `Raster`
   follows `sleeve_render` operation for operation, as strict loops over unboxed arrays that
   allocate nothing per pixel. `cbits/bench.c` compiles `sleeve.h` into the same program.
-- `sleeve-bench check` compares the two languages' descriptions for 20,005 seeds and rasters
-  at 64, 216 and 512 px, and shows that the comparison catches a neighbouring seed's description
-  and a raster two levels off in one byte.
+- `sleeve-bench check` compares the two languages' descriptions for 20,005 seeds, their rasters
+  at 64, 216 and 512 px, and their rasters of hand-made covers at the edges of what the
+  renderers accept (`extremeCovers`), and shows that the comparison catches a neighbouring
+  seed's description and a raster two levels off in one byte.
 - `sleeve-bench bench [--seeds N] [--sizes PX,...]` times generating and rendering each cover in
   each language, the two taking turns, and prints JSON: per size and language the total, mean,
   median, p95, p99 and largest times, the bytes Haskell allocated a cover, the largest difference

@@ -15,6 +15,7 @@ port=${PORT:-8419}
 # shellcheck disable=SC1091
 source "${GHC_WASM_ENV:-$HOME/.ghc-wasm/env}"
 cd "$here"
+"$here/../../scripts/drop-stale-objects" dist-newstyle/wasm >&2
 wasm32-wasi-cabal --builddir=dist-newstyle/wasm build exe:sleeve-bench >/dev/null
 module=$(wasm32-wasi-cabal --builddir=dist-newstyle/wasm list-bin exe:sleeve-bench 2>/dev/null)
 

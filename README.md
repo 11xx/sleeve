@@ -10,6 +10,30 @@ dependencies beyond the C standard library, allocates nothing, and keeps no glob
 
 ![96 covers from seed 0](results/20261020T1936Z-contact-sheets/seeds-0-95.png)
 
+## Speed
+
+C alone, built by gcc -O2 on a desktop core (AMD Ryzen 7 5800X3D), generates and renders 1,000
+covers in 0.17 s at 64 px, 1.40 s at 216 px and 6.83 s at 512 px: about 0.17, 1.4 and 6.8 ms a
+cover. On a phone's big cores (Exynos 9825, NDK clang -O2) the same work takes 0.27, 2.14 and
+10.78 s, and compiled to WebAssembly in a browser (Helium) 0.22, 1.70 and 8.35 s. The
+measurement, its method and every host's figures are in
+[results/20261020T1931Z-language](results/20261020T1931Z-language/summary.md); `bench/`
+reproduces it.
+
+## Taking it into a project
+
+sleeve is one file, so a project keeps a copy of `sleeve.h` taken at a release, and records the
+release and its commit beside the copy:
+
+```sh
+git -C path/to/sleeve show v2026.10.25:sleeve.h > third_party/sleeve/sleeve.h
+git -C path/to/sleeve rev-parse 'v2026.10.25^{commit}'   # the commit to record
+```
+
+`SLEEVE_VERSION` in the copy names its release. A check that the copy still equals the header at
+the recorded commit, or its SHA-256 recorded with it, keeps an edit made in place from going
+unnoticed.
+
 ## Using it
 
 ```c
@@ -404,6 +428,7 @@ build/sleeve describe --style riso 7
 build/sleeve seed key:'Album Title'
 build/sleeve styles
 build/sleeve pieces
+build/sleeve --version
 ```
 
 A seed is a decimal number, a `0x` hexadecimal one, or `key:TEXT` for `sleeve_hash` of TEXT's
@@ -448,7 +473,8 @@ depends on no C library at all: `make freestanding` links every function of it f
 ## Checks
 
 `make check` builds `build/check` and runs it, then requires that the tool and the checks are
-rebuilt when `tools/styles.h` changes. `make faults` shows each check failing on a deliberately
+rebuilt when `tools/styles.h` changes, and that `SLEEVE_VERSION`, the newest heading of
+`CHANGELOG.md` and `sleeve --version` name the same release. `make faults` shows each check failing on a deliberately
 faulty copy of `sleeve.h`, for the reason it predicts.
 
 Undefined behaviour shows only under a sanitizer, so Clang builds the checks a second way:
@@ -463,9 +489,6 @@ Undefined behaviour shows only under a sanitizer, so Clang builds the checks a s
   accepts, styles at the edges of what `sleeve_style_check` accepts, given palettes, and a code
   hook calling every builder call with arbitrary arguments, each rendered and written into
   buffers of any capacity.
-
-`scripts/offline-gate` at the repository's root runs `make check`, and `make sanitize` and `make
-freestanding` where Clang has the sanitizers and wasm-ld, saying which it skips.
 
 | Check | What it holds | Fails on |
 | --- | --- | --- |

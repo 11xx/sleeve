@@ -23,7 +23,7 @@ library
                    Sleeve.Raster
   include-dirs:    cbits
   c-sources:       cbits/bench.c
-  cc-options:      -std=c99 -O2 -Wall -Wextra
+  cc-options:      -std=c99 -O2 -Wall -Wextra -MD
   ghc-options:     -O2
   build-depends:   base ^>=4.21, array
 

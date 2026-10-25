@@ -10,7 +10,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 seeds=${SEEDS:-1000}
 cd "$here"
 mkdir -p "$out"
-"$here/../../scripts/drop-stale-objects" dist-newstyle >&2
+"$here/../scripts/drop-stale-objects" dist-newstyle >&2
 cabal build --offline exe:sleeve-bench >/dev/null
 bench=$(cabal list-bin --offline exe:sleeve-bench)
 c_only=$(mktemp)

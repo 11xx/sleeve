@@ -24,7 +24,7 @@ cd "$here"
 # shellcheck disable=SC1091
 source "${GHC_WASM_ENV:-$HOME/.ghc-wasm/env}"
 
-"$here/../../scripts/drop-stale-objects" dist-newstyle/wasm >&2
+"$here/../scripts/drop-stale-objects" dist-newstyle/wasm >&2
 wasm32-wasi-cabal --builddir=dist-newstyle/wasm build exe:sleeve-bench >/dev/null
 module=$(wasm32-wasi-cabal --builddir=dist-newstyle/wasm list-bin exe:sleeve-bench 2>/dev/null)
 build=$(mktemp -d)

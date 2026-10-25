@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""Removes the C objects and hsc2hs outputs a Cabal build directory holds
+that are older than a header they were made from.
+
+Cabal compiles a C source again only when the source is newer than its
+object, and runs hsc2hs again only when the .hsc file is newer than its
+output, so a header changed alone leaves everything made from it as it was:
+an object compiled against a struct's old layout then links beside one
+compiled against its new layout. Every component that compiles C or runs
+hsc2hs passes -MD in its cc-options, so the compiler records beside each
+object, and hsc2hs's compile records beside each output, every file it read.
+
+For each build directory given (dist-newstyle, or a --builddir), this
+removes every C object and hsc2hs output of the project's own packages
+whose record is missing, names a file that is gone, or names a file newer
+than it, and prints its path. With them goes cabal-install's record of
+that component's last build, so the next build makes them again even when
+the header is one no package lists. An object with no record, such as one
+compiled before its component passed -MD, is removed too.
+
+Cabal also keeps a C object whose cc-options changed, and GHC links an
+executable again after a change to its link flags only where it records
+them in the executable, which ELF targets do and wasm32 does not; neither
+notices a linked output deleted. So each component's stanza in its
+package's .cabal file, with the common stanzas it imports, is kept as a
+stamp in the component's build directory, cache/sleeve-stanza. Where it
+differs from the stanza now, or is missing, the component's C objects and
+linked output go, with the outputs of every component of its package when
+it is the package's library, and so do their build records. A component
+whose build directory holds no linked output loses its build record too.
+
+Run it before cabal builds in a directory that outlives a change to a
+header or a .cabal file.
+
+usage: drop-stale-objects BUILDDIR...
+"""
+
+import hashlib
+import json
+import os
+import sys
+
+OBJECTS = ("o", "dyn_o", "p_o", "p_dyn_o")
+INTERFACES = ("hi", "dyn_hi", "p_hi", "p_dyn_hi")
+# hsc2hs compiles OUT_hsc_make.c and runs it, or, cross-compiling, compiles OUT_hsc_testN.c once per value it
+# finds, each including the same headers
+HSC_RECORDS = ("_hsc_make.d", "_hsc_test0.d")
+
+
+def prerequisites(record):
+    """The files a make rule from -MD names after its target, in order."""
+    with open(record, encoding="utf-8", errors="surrogateescape") as f:
+        text = f.read().replace("\\\n", " ")
+    _target, sep, rest = text.partition(": ")
+    if not sep:
+        return None
+    names, word, escaped = [], "", False
+    for ch in rest:
+        if escaped:
+            word += ch
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif ch.isspace():
+            if word:
+                names.append(word)
+            word = ""
+        else:
+            word += ch
+    if word:
+        names.append(word)
+    return [n.replace("$$", "$") for n in names]
+
+
+def stale(made, record, package):
+    """Whether MADE is older than a file RECORD names after its primary source, or RECORD is unusable."""
+    if not os.path.isfile(record):
+        return True
+    names = prerequisites(record)
+    if not names:
+        return True
+    at = os.stat(made).st_mtime_ns
+    # the first is the source compiled: a C source Cabal already compares itself, or hsc2hs's own temporary file
+    for name in names[1:]:
+        path = os.path.join(package, name)
+        try:
+            if os.stat(path).st_mtime_ns > at:
+                return True
+        except FileNotFoundError:
+            return True
+    return False
+
+
+STANZAS = {"library": "lib", "executable": "exe", "test-suite": "test", "benchmark": "bench",
+           "foreign-library": "flib", "common": "common"}
+STAMP = os.path.join("cache", "sleeve-stanza")
+
+
+def stanzas(cabal):
+    """Each stanza's lines in the package description CABAL, stripped, comments and blank lines left out, under its
+    component's name as plan.json gives it ("lib", "lib:NAME", "exe:NAME"), a common stanza's as "common:NAME"."""
+    found, current = {}, None
+    with open(cabal, encoding="utf-8", errors="surrogateescape") as f:
+        for line in f:
+            text = line.strip()
+            if not text or text.startswith("--"):
+                continue
+            if not line[0].isspace():
+                words = text.split()
+                kind = STANZAS.get(words[0].lower())
+                current = None if kind is None else found.setdefault(kind if len(words) == 1 else f"{kind}:{words[1]}", [])
+            elif current is not None:
+                current.append(text)
+    return found
+
+
+def described(found, name, seen=()):
+    """Component NAME's lines in FOUND, each common stanza it imports in place of its import."""
+    lines = []
+    for line in found.get(name, []):
+        key, sep, value = line.partition(":")
+        if sep and key.strip().lower() == "import":
+            for imported in value.replace(",", " ").split():
+                if imported not in seen:
+                    lines += described(found, f"common:{imported}", seen + (imported,))
+        else:
+            lines.append(line)
+    return lines
+
+
+def stanza_stamp(unit):
+    """A digest of the stanza a plan's UNIT is built from, or None where its package description is not found."""
+    cabal = os.path.join(unit["pkg-src"]["path"], f"{unit.get('pkg-name', '')}.cabal")
+    if not os.path.isfile(cabal):
+        return None
+    found = stanzas(cabal)
+    names = [unit["component-name"]] if "component-name" in unit else sorted(n for n in found if not n.startswith("common:"))
+    lines = [f"{n}\n" + "\n".join(described(found, n)) for n in names]
+    return hashlib.sha256("\n\n".join(lines).encode("utf-8", "surrogateescape")).hexdigest()
+
+
+def kept_stamp(dist):
+    try:
+        with open(os.path.join(dist, STAMP), encoding="utf-8") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return None
+
+
+def linked(dist, path):
+    """Whether PATH, in component directory DIST, is the component's linked output: build/NAME/NAME, .wasm or .exe."""
+    directory, name = os.path.split(path)
+    parent = os.path.dirname(directory)
+    stem = name.removesuffix(".wasm").removesuffix(".exe")
+    return parent == os.path.join(dist, "build") and stem == os.path.basename(directory)
+
+
+def output_missing(unit, dist):
+    """Whether an executable's, test's, benchmark's or foreign library's build directory lacks its linked output."""
+    kind, _colon, name = unit.get("component-name", "").partition(":")
+    directory = os.path.join(dist, "build", name)
+    if kind not in ("exe", "test", "bench", "flib") or not os.path.isdir(directory):
+        return False
+    return not any(os.path.isfile(os.path.join(directory, name + e)) for e in ("", ".wasm", ".exe"))
+
+
+def hsc_output(path):
+    with open(path, "rb") as f:
+        first = f.readline()
+    return first.startswith(b'{-# LINE 1 "') and first.rstrip().endswith(b'.hsc" #-}')
+
+
+def drop_stale(builddir):
+    plan = os.path.join(builddir, "cache", "plan.json")
+    if not os.path.isfile(plan):
+        return
+    root = os.path.realpath(builddir)
+    with open(plan, encoding="utf-8") as f:
+        units = json.load(f)["install-plan"]
+    owned, stamps, libraries, unlinked = {}, {}, {}, set()
+    for unit in units:
+        source = unit.get("pkg-src", {})
+        dist = unit.get("dist-dir")
+        if source.get("type") != "local" or dist is None:
+            continue
+        dist = os.path.realpath(dist)
+        # a plan written for another place names directories this build does not own
+        if os.path.commonpath([root, dist]) == root and os.path.isdir(dist):
+            owned[dist] = os.path.realpath(source["path"])
+            stamps[dist] = stanza_stamp(unit)
+            if output_missing(unit, dist):
+                unlinked.add(dist)
+            if unit.get("component-name", "lib") == "lib":
+                libraries[owned[dist]] = dist
+    restamped = {dist for dist, stamp in stamps.items() if stamp is not None and stamp != kept_stamp(dist)}
+    # a library's flags reach the link of every component of its package
+    relinked = restamped | {dist for dist, package in owned.items() if libraries.get(package) in restamped}
+    seen = set()
+    # a library's directory holds its package's other components', so each file goes to the innermost
+    for dist in sorted(owned, key=len, reverse=True):
+        package = owned[dist]
+        dropped = False
+        for directory, _subdirs, files in os.walk(dist):
+            present = set(files)
+            for name in files:
+                path = os.path.join(directory, name)
+                if path in seen:
+                    continue
+                seen.add(path)
+                stem, _dot, suffix = name.partition(".")
+                c_object = suffix in OBJECTS and not any(f"{stem}.{i}" in present for i in INTERFACES)
+                if (c_object and dist in restamped) or (dist in relinked and linked(dist, path)):
+                    os.remove(path)
+                    print(path)
+                    dropped = True
+                    continue
+                if c_object:
+                    # GHC has the compiler write OBJECT.tmp, then renames it, so the record is OBJECT.d
+                    record = os.path.join(directory, name + ".d")
+                elif suffix == "hs" and hsc_output(path):
+                    record = next((os.path.join(directory, stem + r) for r in HSC_RECORDS if stem + r in present),
+                                  os.path.join(directory, stem + HSC_RECORDS[0]))
+                else:
+                    continue
+                if stale(path, record, package):
+                    os.remove(path)
+                    print(path)
+                    dropped = True
+        # cabal-install builds a component again only when a file it watches changed, and it watches no header
+        # a package does not list, so its record of the last build goes with what was dropped
+        if dropped or dist in relinked or dist in unlinked:
+            monitor = os.path.join(dist, "cache", "build")
+            if os.path.isfile(monitor):
+                os.remove(monitor)
+    for dist in restamped:
+        os.makedirs(os.path.join(dist, "cache"), exist_ok=True)
+        with open(os.path.join(dist, STAMP), "w", encoding="utf-8") as f:
+            f.write(stamps[dist] + "\n")
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit(__doc__.rsplit("\n\n", 1)[-1].strip())
+    for builddir in sys.argv[1:]:
+        drop_stale(builddir)
+
+
+if __name__ == "__main__":
+    main()

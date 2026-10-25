@@ -30,6 +30,10 @@ extern "C" {
    pieces, stay the same for the same seed while it does. */
 #define SLEEVE_GENERATOR 1
 
+/* The library's release, its date as YYYY.M.D (a second release that day adds .N). A copy of
+   this file kept in another project names the release and the commit it was taken from. */
+#define SLEEVE_VERSION "2026.10.25"
+
 /* Lengths and positions are integers in units of the cover's side: SLEEVE_UNIT is the side. */
 #define SLEEVE_UNIT 10000
 #define SLEEVE_MAX_LAYERS 12

@@ -29,6 +29,8 @@ static void usage(FILE *to) {
         "  sleeve pieces\n"
         "      Lists the built-in compositions, palette hooks and finishers with their\n"
         "      parameters' ranges and defaults.\n"
+        "  sleeve --version\n"
+        "      Prints the library's release.\n"
         "SEED is a decimal number, a 0x-prefixed hexadecimal one, or key:TEXT for the hash of\n"
         "TEXT's bytes. LOOK is any of:\n"
         "  --style NAME       draws in a style: default, riso, brand or gallery\n"
@@ -290,6 +292,7 @@ int main(int argc, char **argv) {
   if (strcmp(argv[1], "seed") == 0) return describe_command(argc - 2, argv + 2, 1);
   if (strcmp(argv[1], "styles") == 0 && argc == 2) return styles_command();
   if (strcmp(argv[1], "pieces") == 0 && argc == 2) return pieces_command();
+  if (strcmp(argv[1], "--version") == 0 && argc == 2) return printf("sleeve %s\n", SLEEVE_VERSION), 0;
   if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "help") == 0) return usage(stdout), 0;
   return usage(stderr), 2;
 }

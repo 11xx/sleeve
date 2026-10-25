@@ -1,7 +1,8 @@
 # Builds sleeve's command-line tool and checks, and runs them.
 #   make               the tool and the check program, into BUILD
 #   make check         every check (the SVG check needs rsvg-convert, and is skipped without
-#                      it), and that the tool and the checks rebuild when tools/styles.h does
+#                      it), that the tool and the checks rebuild when tools/styles.h does, and
+#                      that sleeve.h, CHANGELOG.md and sleeve --version name one release
 #   make faults        each check against a faulty variant of sleeve.h, which it must fail
 #   make sanitize      every check built by Clang with ASan and UBSan, within SANITIZE_TIME
 #   make sanitize-faults  each fault that is undefined behaviour, caught by UBSan in its check
@@ -40,6 +41,13 @@ check: $(BUILD)/check $(BUILD)/sleeve
 	  fi; \
 	done; \
 	echo "pass makefile: the tool and the checks are rebuilt when tools/styles.h changes"
+	@version=$$(sed -n 's/^#define SLEEVE_VERSION "\(.*\)"$$/\1/p' sleeve.h); \
+	heading=$$(sed -n 's/^## \([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -n 1); \
+	said=$$($(BUILD)/sleeve --version); \
+	if [ -z "$$version" ] || [ "$$heading" != "$$version" ] || [ "$$said" != "sleeve $$version" ]; then \
+	  echo "FAIL version: sleeve.h names '$$version', CHANGELOG.md's newest heading '$$heading', sleeve --version '$$said'"; exit 1; \
+	fi; \
+	echo "pass version: sleeve.h, CHANGELOG.md's newest heading and sleeve --version name $$version"
 
 faults: | $(BUILD)
 	CC="$(CC)" CFLAGS="$(CFLAGS)" tests/faulty-variants.sh $(BUILD)/faults
